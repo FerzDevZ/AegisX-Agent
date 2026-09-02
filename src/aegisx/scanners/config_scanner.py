@@ -1,4 +1,11 @@
-"""Configuration scanner — detects security misconfigurations."""
+"""Configuration scanner — detects security misconfigurations.
+
+Improvements:
+- Checks multiple pages, not just root
+- More header checks
+- Detects exposed admin panels
+- Checks for common framework-specific issues
+"""
 
 from __future__ import annotations
 
@@ -16,6 +23,13 @@ class ConfigScanner(BaseScanner):
 
     name = "config_scanner"
     description = "Detects security misconfigurations (debug mode, default creds, etc.)"
+
+    # Paths to check for misconfigurations
+    CHECK_PATHS = [
+        "/", "/admin", "/login", "/wp-admin",
+        "/debug", "/.env", "/config",
+        "/robots.txt", "/sitemap.xml",
+    ]
 
     async def validate_target(self) -> bool:
         """Validate target is reachable."""
@@ -43,6 +57,7 @@ class ConfigScanner(BaseScanner):
                 follow_redirects=True,
                 verify=False,  # noqa: S501
             ) as client:
+                # Check main page
                 response = await client.get(
                     self.config.target_url,
                     headers={"User-Agent": self.config.user_agent},
@@ -53,9 +68,23 @@ class ConfigScanner(BaseScanner):
                 findings += self._check_directory_listing(response)
                 findings += self._check_http_methods(response)
                 findings += self._check_server_info(response)
+                findings += self._check_exposed_admin(response)
+                findings += self._check_cors_misconfig(response)
+                findings += self._check_cache_control(response)
 
         except Exception as e:
             logger.error("Config scan failed: %s", e)
+
+        # Check sensitive paths (async)
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.config.timeout_seconds,
+                follow_redirects=True,
+                verify=False,  # noqa: S501
+            ) as client:
+                findings += await self._check_sensitive_paths(client)
+        except Exception as e:
+            logger.error("Sensitive paths check failed: %s", e)
 
         return findings
 
@@ -71,16 +100,18 @@ class ConfigScanner(BaseScanner):
             ("phpinfo()", "phpinfo() output is exposed"),
             ("django debug", "Django debug mode may be active"),
             ("laravel debug", "Laravel debug mode may be active"),
+            ("application error", "Application error page exposed"),
+            ("whoops", "Whoops error handler exposed"),
+            ("error_status: 500", "Server error status exposed"),
         ]
 
         for indicator, description in debug_indicators:
             if indicator in body:
                 findings.append(Finding(
-                    title="Debug Mode Enabled",
+                    title="Debug Mode / Error Details Exposed",
                     description=(
                         f"{description}. Debug mode in production exposes sensitive "
-                        "information including stack traces, environment variables, "
-                        "and internal application details."
+                        "information including stack traces and environment variables."
                     ),
                     severity=Severity.MEDIUM,
                     cwe_id="CWE-215",
@@ -90,8 +121,7 @@ class ConfigScanner(BaseScanner):
                     evidence=description,
                     remediation=(
                         "Disable debug mode in production. "
-                        "Use environment-specific configuration. "
-                        "Ensure DEBUG=False in Django, APP_DEBUG=false in Laravel."
+                        "Use environment-specific configuration."
                     ),
                 ))
                 break
@@ -109,6 +139,8 @@ class ConfigScanner(BaseScanner):
             ("iis-10.0", "IIS default page"),
             ("tomcat", "Tomcat default page"),
             ("welcome to docker", "Docker default page"),
+            ("it works!", "Apache default page"),
+            ("apache http server", "Apache default page"),
         ]
 
         for indicator, name in default_indicators:
@@ -140,6 +172,7 @@ class ConfigScanner(BaseScanner):
             "directory listing for",
             "parent directory",
             "<title>index of",
+            "name last modified size",
         ]
 
         if any(indicator in body for indicator in listing_indicators):
@@ -156,7 +189,7 @@ class ConfigScanner(BaseScanner):
                 method="GET",
                 remediation=(
                     "Disable directory listing in web server configuration. "
-                    "Add index files to directories. Configure proper access controls."
+                    "Add index files to directories."
                 ),
             ))
 
@@ -166,13 +199,11 @@ class ConfigScanner(BaseScanner):
         """Check for dangerous HTTP methods enabled."""
         findings = []
 
-        # The response we have is from a GET; we can check Allow header
         allow = response.headers.get("allow", "")
-        dangerous_methods = ["TRACE", "DEBUG", "OPTIONS"]
+        dangerous_methods = ["TRACE", "DEBUG"]
 
         for method in dangerous_methods:
             if method in allow.upper():
-                severity = Severity.HIGH if method == "TRACE" else Severity.LOW
                 findings.append(Finding(
                     title=f"Dangerous HTTP Method: {method}",
                     description=(
@@ -180,7 +211,7 @@ class ConfigScanner(BaseScanner):
                         + ("TRACE can be used for cross-site tracing attacks." if method == "TRACE"
                            else f"{method} may expose additional attack surface.")
                     ),
-                    severity=severity,
+                    severity=Severity.HIGH if method == "TRACE" else Severity.LOW,
                     cwe_id="CWE-16",
                     owasp_category="A05:2021",
                     url=str(response.url),
@@ -195,8 +226,10 @@ class ConfigScanner(BaseScanner):
         """Check for excessive server information exposure."""
         findings = []
 
+        headers = {k.lower(): v for k, v in response.headers.items()}
+
         # Check X-Powered-By
-        powered_by = response.headers.get("x-powered-by", "")
+        powered_by = headers.get("x-powered-by", "")
         if powered_by:
             findings.append(Finding(
                 title="X-Powered-By Header Exposed",
@@ -219,6 +252,7 @@ class ConfigScanner(BaseScanner):
             error_indicators = [
                 "exception", "stack trace", "traceback",
                 "debug", "error in", "line number",
+                "nullpointer", "sqlstate",
             ]
             if any(indicator in body for indicator in error_indicators):
                 findings.append(Finding(
@@ -238,5 +272,149 @@ class ConfigScanner(BaseScanner):
                         "internal details. Log errors server-side only."
                     ),
                 ))
+
+        return findings
+
+    def _check_exposed_admin(self, response: httpx.Response) -> list[Finding]:
+        """Check for exposed admin panels."""
+        findings = []
+        body = response.text.lower()
+
+        # Check for common admin panel indicators
+        admin_indicators = [
+            ("admin login", "Admin login page exposed"),
+            ("administrator login", "Administrator login exposed"),
+            ("phpmyadmin", "phpMyAdmin exposed"),
+            ("adminer", "Adminer database admin exposed"),
+            ("cpanel", "cPanel exposed"),
+            ("webmin", "Webmin exposed"),
+        ]
+
+        for indicator, description in admin_indicators:
+            if indicator in body:
+                findings.append(Finding(
+                    title="Admin Panel Exposed",
+                    description=(
+                        f"{description}. Exposed admin panels are "
+                        "prime targets for brute-force attacks."
+                    ),
+                    severity=Severity.MEDIUM,
+                    cwe_id="CWE-284",
+                    owasp_category="A07:2021",
+                    url=str(response.url),
+                    method="GET",
+                    evidence=f"Indicator: {indicator}",
+                    remediation="Restrict admin panel access to internal networks or VPN.",
+                ))
+                break
+
+        return findings
+
+    def _check_cors_misconfig(self, response: httpx.Response) -> list[Finding]:
+        """Check for CORS misconfiguration."""
+        findings = []
+
+        acao = response.headers.get("access-control-allow-origin", "")
+        acac = response.headers.get("access-control-allow-credentials", "")
+
+        if acao == "*" and acac.lower() == "true":
+            findings.append(Finding(
+                title="CORS Wildcard with Credentials",
+                description=(
+                    "Access-Control-Allow-Origin is '*' with credentials enabled. "
+                    "This is a critical misconfiguration allowing credential theft."
+                ),
+                severity=Severity.HIGH,
+                cvss_score=8.0,
+                cwe_id="CWE-942",
+                owasp_category="A05:2021",
+                url=str(response.url),
+                method="GET",
+                evidence=f"ACAO: {acao}, ACAC: {acac}",
+                remediation="Restrict CORS origins and never use '*' with credentials.",
+            ))
+
+        return findings
+
+    def _check_cache_control(self, response: httpx.Response) -> list[Finding]:
+        """Check for missing Cache-Control headers on sensitive pages."""
+        findings = []
+
+        cache_control = response.headers.get("cache-control", "")
+        pragma = response.headers.get("pragma", "")
+
+        # Check if sensitive page lacks cache control
+        if not cache_control and not pragma:
+            body = response.text.lower()
+            sensitive_indicators = ["login", "password", "admin", "auth", "token"]
+
+            for indicator in sensitive_indicators:
+                if indicator in str(response.url).lower() or indicator in body[:1000]:
+                    findings.append(Finding(
+                        title="Missing Cache-Control on Sensitive Page",
+                        description=(
+                            "This page contains sensitive content but lacks Cache-Control "
+                            "headers. Browsers may cache sensitive data."
+                        ),
+                        severity=Severity.LOW,
+                        cwe_id="CWE-525",
+                        owasp_category="A05:2021",
+                        url=str(response.url),
+                        method="GET",
+                        remediation="Add 'Cache-Control: no-store' to sensitive pages.",
+                    ))
+                    break
+
+        return findings
+
+    async def _check_sensitive_paths(self, client: httpx.AsyncClient) -> list[Finding]:
+        """Check for exposed sensitive files and paths."""
+        findings = []
+
+        sensitive_checks = [
+            ("/.env", "Environment File", Severity.HIGH, 7.5),
+            ("/.git/config", "Git Configuration", Severity.HIGH, 7.0),
+            ("/.git/HEAD", "Git HEAD Reference", Severity.MEDIUM, 5.0),
+            ("/server-status", "Apache Server Status", Severity.MEDIUM, 5.0),
+            ("/server-info", "Apache Server Info", Severity.MEDIUM, 5.0),
+            ("/phpinfo.php", "PHP Info Page", Severity.MEDIUM, 5.0),
+            ("/debug/vars", "Go Debug Vars", Severity.HIGH, 7.0),
+            ("/debug/pprof/", "Go Debug Profiling", Severity.HIGH, 7.0),
+            ("/elmah.axd", "ELMAH Error Log", Severity.HIGH, 7.5),
+            ("/trace.axd", "ASP.NET Trace", Severity.HIGH, 7.5),
+        ]
+
+        for path, name, severity, cvss in sensitive_checks:
+            try:
+                url = urljoin(self.config.target_url, path)
+                response = await client.get(
+                    url,
+                    headers={"User-Agent": self.config.user_agent},
+                    follow_redirects=False,
+                )
+
+                if response.status_code == 200:
+                    # Verify it's actual content, not a custom 404
+                    body = response.text.lower()
+                    if len(response.text) > 100 and not ("not found" in body or "404" in body):
+                        findings.append(Finding(
+                            title=f"Sensitive Path Exposed: {name}",
+                            description=(
+                                f"{name} is accessible at {path}. "
+                                "This may expose sensitive configuration or debugging information."
+                            ),
+                            severity=severity,
+                            cvss_score=cvss,
+                            cwe_id="CWE-200",
+                            owasp_category="A05:2021",
+                            url=url,
+                            endpoint=path,
+                            method="GET",
+                            evidence=response.text[:300],
+                            remediation=f"Restrict access to {path} or remove it entirely.",
+                        ))
+
+            except httpx.RequestError:
+                continue
 
         return findings
