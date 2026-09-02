@@ -95,9 +95,15 @@ class AegisxOrchestrator:
         # Register exploit modules
         from aegisx.exploits.sqli_exploit import SQLiExploit
         from aegisx.exploits.xss_exploit import XSSExploit
+        from aegisx.exploits.csrf_exploit import CSRFExploit
+        from aegisx.exploits.ssrf_exploit import SSRFExploit
 
-        for cls in [SQLiExploit, XSSExploit]:
+        for cls in [SQLiExploit, XSSExploit, CSRFExploit, SSRFExploit]:
             self.plugin_manager.register_exploit(cls.name, cls)
+
+        # Register HTML reporter
+        from aegisx.reporters.html_reporter import HTMLReporter
+        self.plugin_manager.register_reporter(HTMLReporter.format_name, HTMLReporter)
 
     def _load_plugins(self) -> None:
         """Discover and load all registered plugins."""
@@ -222,11 +228,13 @@ class AegisxOrchestrator:
         from aegisx.reporters.markdown_reporter import MarkdownReporter
         from aegisx.reporters.json_reporter import JSONReporter
         from aegisx.reporters.sarif_reporter import SARIFReporter
+        from aegisx.reporters.html_reporter import HTMLReporter
 
         reporter_map = {
             ReportFormat.MARKDOWN: MarkdownReporter,
             ReportFormat.JSON: JSONReporter,
             ReportFormat.SARIF: SARIFReporter,
+            ReportFormat.HTML: HTMLReporter,
         }
 
         output_dir = self.config.report_output

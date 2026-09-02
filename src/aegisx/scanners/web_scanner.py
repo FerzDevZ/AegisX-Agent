@@ -452,6 +452,26 @@ class WebScanner(BaseScanner):
 
                 headers = {k.lower(): v for k, v in response.headers.items()}
 
+                # Check if Vercel WAF is serving a challenge page
+                if headers.get("x-vercel-mitigated") == "challenge":
+                    findings.append(Finding(
+                        title="WAF/CDN Challenge Detected",
+                        description=(
+                            "Vercel is serving a challenge page (WAF). Security headers may be "
+                            "missing from the challenge response but present on the real page. "
+                            "This can cause false positives in header checks."
+                        ),
+                        severity=Severity.INFO,
+                        cwe_id="CWE-16",
+                        owasp_category="A05:2021",
+                        url=self.config.target_url,
+                        endpoint="/",
+                        method="GET",
+                        evidence=f"x-vercel-mitigated: {headers.get('x-vercel-mitigated')}",
+                        remediation="Configure WAF to allow security scanner User-Agents.",
+                    ))
+                    return findings  # Skip header checks on challenge pages
+
                 checks = [
                     {
                         "header": "content-security-policy",

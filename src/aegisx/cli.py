@@ -217,8 +217,9 @@ def list_plugins() -> None:
     from aegisx.reporters.markdown_reporter import MarkdownReporter
     from aegisx.reporters.json_reporter import JSONReporter
     from aegisx.reporters.sarif_reporter import SARIFReporter
+    from aegisx.reporters.html_reporter import HTMLReporter
 
-    for cls in [MarkdownReporter, JSONReporter, SARIFReporter]:
+    for cls in [MarkdownReporter, JSONReporter, SARIFReporter, HTMLReporter]:
         pm.register_reporter(cls.format_name, cls)
 
     table = Table(title="📦 Aegisx-Agent Plugins")
