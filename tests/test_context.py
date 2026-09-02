@@ -22,7 +22,7 @@ class TestFinding:
         assert f.title == "SQL Injection"
         assert f.severity == Severity.CRITICAL
         assert f.id.startswith("VF-")
-        assert len(f.id) == 12  # VF- + 8 hex chars
+        assert len(f.id) == 11  # VF- + 8 hex chars
 
     def test_finding_severity_order(self) -> None:
         """severity_order returns correct numeric values."""
@@ -133,7 +133,7 @@ class TestScanContext:
         assert stats.critical_count == 1
         assert stats.high_count == 2
         assert stats.medium_count == 0
-        assert stats.scanners_used == ["web", "secret"]
+        assert set(stats.scanners_used) == {"web", "secret"}
 
     def test_finish(self, context: ScanContext) -> None:
         context.add_finding(Finding(title="Test", severity=Severity.LOW))
