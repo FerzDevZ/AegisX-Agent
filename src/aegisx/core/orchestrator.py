@@ -82,11 +82,12 @@ class AegisxOrchestrator:
         from aegisx.scanners.secret_scanner import SecretScanner
         from aegisx.scanners.config_scanner import ConfigScanner
         from aegisx.scanners.dependency_scanner import DependencyScanner
+        from aegisx.scanners.network_scanner import NetworkScanner
         from aegisx.reporters.markdown_reporter import MarkdownReporter
         from aegisx.reporters.json_reporter import JSONReporter
         from aegisx.reporters.sarif_reporter import SARIFReporter
 
-        for cls in [WebScanner, SecretScanner, ConfigScanner, DependencyScanner]:
+        for cls in [WebScanner, SecretScanner, ConfigScanner, DependencyScanner, NetworkScanner]:
             self.plugin_manager.register_scanner(cls.name, cls)
         for cls in [MarkdownReporter, JSONReporter, SARIFReporter]:
             self.plugin_manager.register_reporter(cls.format_name, cls)

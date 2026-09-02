@@ -82,6 +82,7 @@ class AegisxConfig(BaseSettings):
             "secret_scanner",
             "config_scanner",
             "dependency_scanner",
+            "network_scanner",
         ],
         description="List of scanner modules to enable",
     )

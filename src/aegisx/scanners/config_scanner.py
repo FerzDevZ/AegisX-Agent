@@ -9,6 +9,8 @@ Improvements:
 
 from __future__ import annotations
 
+from urllib.parse import urljoin
+
 import httpx
 
 from aegisx.core.context import Finding, ScanContext, Severity
