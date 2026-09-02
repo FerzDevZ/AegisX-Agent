@@ -37,7 +37,23 @@
 
 ## 🚀 Quick Start
 
-### Installation
+### One-Line Install (Recommended)
+
+```bash
+curl -sL https://raw.githubusercontent.com/FerzDevZ/AegisX-Agent/main/install.sh | bash
+```
+
+This will automatically:
+- ✅ Detect your OS (Linux/macOS)
+- ✅ Install missing dependencies (Python 3.12+, pip, git)
+- ✅ Clone the repository to `~/.aegisx`
+- ✅ Create a virtual environment
+- ✅ Install all packages
+- ✅ Set up shell alias
+- ✅ Create default `.env` config
+- ✅ Verify the installation
+
+### Manual Installation
 
 ```bash
 # Clone the repository
@@ -50,6 +66,14 @@ source .venv/bin/activate
 
 # Install in development mode
 pip install -e ".[dev]"
+```
+
+### Uninstall
+
+```bash
+~/.aegisx/uninstall.sh
+# or
+./install.sh uninstall
 ```
 
 ### First Scan
@@ -177,6 +201,7 @@ aegisx-agent/
 │   ├── test_owasp.py            #    OWASP knowledge base tests
 │   └── test_plugins.py          #    Plugin manager tests
 │
+├── install.sh                   # 🛡️ One-line installer
 ├── pyproject.toml               # 📦 Project configuration
 ├── Dockerfile                   # 🐳 Docker build
 ├── .env.example                 # 🔑 Environment variable template
