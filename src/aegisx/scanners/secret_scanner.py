@@ -37,7 +37,7 @@ class SecretScanner(BaseScanner):
         (r"(?i)secret[_-]?key\s*[:=]\s*['\"]?[A-Za-z0-9_-]{20,}", "Secret Key", Severity.HIGH, 7.0),
         (r"(?i)password\s*[:=]\s*['\"]?[^\s'\"]{8,}", "Hardcoded Password", Severity.HIGH, 7.5),
         (r"(?i)database[_-]?url\s*[:=]\s*['\"]?[^\s'\"]+", "Database URL", Severity.CRITICAL, 9.0),
-        (r"-----BEGIN (RSA |EC )?PRIVATE KEY-----", "Private Key", Severity.CRITICAL, 9.5),
+        (r"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----", "Private Key", Severity.CRITICAL, 9.5),
         (r"(?i)bearer\s+[A-Za-z0-9_\-\.]+", "Bearer Token", Severity.HIGH, 7.0),
         (r"(?i)basic\s+[A-Za-z0-9+/=]{20,}", "Basic Auth Credentials", Severity.HIGH, 7.0),
         (r"(?i)mysql://[^\s]+", "MySQL Connection String", Severity.CRITICAL, 9.0),
