@@ -92,6 +92,13 @@ class AegisxOrchestrator:
         for cls in [MarkdownReporter, JSONReporter, SARIFReporter]:
             self.plugin_manager.register_reporter(cls.format_name, cls)
 
+        # Register exploit modules
+        from aegisx.exploits.sqli_exploit import SQLiExploit
+        from aegisx.exploits.xss_exploit import XSSExploit
+
+        for cls in [SQLiExploit, XSSExploit]:
+            self.plugin_manager.register_exploit(cls.name, cls)
+
     def _load_plugins(self) -> None:
         """Discover and load all registered plugins."""
         self.plugin_manager.load_entry_points()
