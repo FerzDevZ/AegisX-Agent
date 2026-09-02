@@ -34,7 +34,7 @@ INSTALL_DIR="${AEGISX_INSTALL_DIR:-$HOME/.aegisx}"
 VENV_DIR="${INSTALL_DIR}/.venv"
 BIN_DIR="${INSTALL_DIR}/bin"
 PYTHON_MIN_VERSION="3.12"
-AEGISX_VERSION="0.1.0"
+AEGISX_VERSION="0.1.1"
 
 # ─── Helpers ───────────────────────────────────────────────────
 print_banner() {
@@ -45,7 +45,7 @@ print_banner() {
    / \   _ __ (_) | |_(_)_|__  /___ _ __ ___  _ __ (_)_ __   __ _
   / _ \ | '__| | | __| | |/ / / _ \ '__/ _ \| '_ \| | '_ \ / _` |
  / ___ \| |   | | |_| |   < /  __/ | | (_) | | | | | | | | | (_| |
-/_/   \_\_|   |_|\__|_|_|\\_\\\\___|_|  \___/|_| |_|_|_| |_|\__, |
+/_/   \_\_|   |_|\__|_|_|_\\___|_|  \___/|_| |_|_|_| |_|\__, |
                                                           |___/
 BANNER
     echo -e "${NC}"
@@ -215,11 +215,10 @@ setup_repository() {
 
     if [ -d "${INSTALL_DIR}/.git" ]; then
         log_info "Repository exists, pulling latest..."
-        cd "${INSTALL_DIR}"
-        git pull --ff-only origin main 2>/dev/null || {
+        # Use subshell to avoid cd issues
+        (cd "${INSTALL_DIR}" && git pull --ff-only origin main 2>/dev/null) || {
             log_warn "Pull failed, using existing version"
         }
-        cd - > /dev/null
     else
         log_info "Cloning Aegisx-Agent..."
         rm -rf "${INSTALL_DIR}"
@@ -288,6 +287,9 @@ setup_shell_profile() {
     if [ -n "${SHELL_CONFIG}" ]; then
         ALIAS_LINE="alias aegisx='${VENV_DIR}/bin/aegisx'"
         VENV_ACTIVATE="source ${VENV_DIR}/bin/activate"
+
+        # Remove old aliases first
+        sed -i '/# ─── Aegisx-Agent/,/aegisx/d' "${SHELL_CONFIG}" 2>/dev/null || true
 
         # Check if alias already exists
         if ! grep -q "alias aegisx=" "${SHELL_CONFIG}" 2>/dev/null; then
@@ -447,7 +449,7 @@ EOF
         # Remove alias from shell config
         for config in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
             if [ -f "$config" ]; then
-                sed -i '/# Aegisx-Agent/,/aegisx/d' "$config" 2>/dev/null || true
+                sed -i '/# ─── Aegisx-Agent/,/aegisx/d' "$config" 2>/dev/null || true
             fi
         done
 
