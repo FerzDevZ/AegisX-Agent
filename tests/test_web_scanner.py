@@ -255,8 +255,12 @@ class TestAuthScanner:
     @respx.mock
     @pytest.mark.asyncio
     async def test_admin_redirect_not_flagged(self, config):
+        # Mock both the admin endpoint and the login redirect target
         respx.get("https://test.example.com/admin").mock(
             return_value=httpx.Response(302, headers={"Location": "/login"})
+        )
+        respx.get("https://test.example.com/login").mock(
+            return_value=httpx.Response(200, text="Login page")
         )
         findings = await check_auth_bypass(config, ["https://test.example.com/admin"])
         assert len(findings) == 0
@@ -268,16 +272,21 @@ class TestParamScanner:
     @respx.mock
     @pytest.mark.asyncio
     async def test_sqli_detection(self, config):
-        """SQLi: first call returns normal page, second returns SQL error."""
-        route = respx.get(re.compile(r"https://test\.example\.com/search.*"))
-        route.side_effect = [
-            httpx.Response(200, text="normal page"),
-            httpx.Response(200, text="You have an error in your SQL syntax near line 1"),
-            httpx.Response(200, text="normal page"),
-            httpx.Response(200, text="normal page"),
-            httpx.Response(200, text="normal page"),
-            httpx.Response(200, text="normal page"),
-        ]
+        """SQLi: payload with SQL error in response."""
+        import re as _re
+
+        def _sqli_responder(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            # Return SQL error when payload contains URL-encoded single quote
+            # SQLi payloads are URL-encoded: ' becomes %27
+            if "%27" in url:
+                return httpx.Response(
+                    200, text="You have an error in your SQL syntax near line 1"
+                )
+            return httpx.Response(200, text="normal page")
+
+        route = respx.route(method="GET", url=_re.compile(r"https://test\.example\.com/.*"))
+        route.side_effect = _sqli_responder
         findings = await check_sqli(config, "https://test.example.com/search?q=hello")
         assert any("SQL Injection" in f.title for f in findings)
 

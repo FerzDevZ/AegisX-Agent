@@ -40,7 +40,7 @@ class ConfigScanner(BaseScanner):
             async with create_client(self.config) as client:
                 response = await client.get(self.config.target_url)
                 return response.status_code < 500
-        except Exception:
+        except httpx.RequestError:
             return False
 
     async def scan(self) -> list[Finding]:
@@ -64,15 +64,15 @@ class ConfigScanner(BaseScanner):
                 findings += self._check_cors_misconfig(response)
                 findings += self._check_cache_control(response)
 
-        except Exception as e:
-            logger.error("Config scan failed: %s", e)
+        except httpx.RequestError as e:
+            logger.debug("Config scan request failed: %s", type(e).__name__)
 
         # Check sensitive paths (async)
         try:
             async with create_client(self.config) as client:
                 findings += await self._check_sensitive_paths(client)
-        except Exception as e:
-            logger.error("Sensitive paths check failed: %s", e)
+        except httpx.RequestError as e:
+            logger.debug("Sensitive paths check failed: %s", type(e).__name__)
 
         return findings
 

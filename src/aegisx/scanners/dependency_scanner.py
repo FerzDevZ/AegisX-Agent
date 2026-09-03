@@ -114,7 +114,7 @@ class DependencyScanner(BaseScanner):
                             ],
                         ))
 
-        except Exception as e:
-            logger.debug("JS library check failed: %s", e)
+        except (httpx.RequestError, ValueError) as e:
+            logger.debug("JS library check failed: %s", type(e).__name__)
 
         return findings

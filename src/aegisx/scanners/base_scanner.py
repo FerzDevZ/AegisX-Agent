@@ -78,8 +78,8 @@ class BaseScanner(ABC):
                     "[yellow]SKIP[/] Scanner %s: target not applicable", self.name
                 )
                 return []
-        except Exception as e:
-            logger.error("[red]ERROR[/] Scanner %s validation failed: %s", self.name, e)
+        except httpx.RequestError as e:
+            logger.debug("Scanner %s validation failed: %s", self.name, type(e).__name__)
             return []
 
         try:
@@ -94,6 +94,6 @@ class BaseScanner(ABC):
                 len(findings),
             )
             return findings
-        except Exception as e:
-            logger.error("[red]FAIL[/] Scanner %s crashed: %s", self.name, e)
+        except (httpx.RequestError, ValueError, KeyError) as e:
+            logger.error("[red]FAIL[/] Scanner %s crashed: %s", self.name, type(e).__name__)
             return []

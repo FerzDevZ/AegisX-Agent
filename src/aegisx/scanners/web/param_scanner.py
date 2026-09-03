@@ -183,8 +183,8 @@ async def check_sqli(
                             except (httpx.RequestError, httpx.TimeoutException):
                                 continue
 
-    except Exception as exc:
-        logger.warning("SQLi check for %s failed: %s", url, exc)
+    except (httpx.RequestError, httpx.TimeoutException, ValueError) as exc:
+        logger.debug("SQLi check failed: %s", type(exc).__name__)
 
     return findings
 
@@ -279,8 +279,8 @@ async def check_xss(
                         except (httpx.RequestError, httpx.TimeoutException):
                             continue
 
-    except Exception as exc:
-        logger.warning("XSS check for %s failed: %s", url, exc)
+    except (httpx.RequestError, httpx.TimeoutException, ValueError) as exc:
+        logger.debug("XSS check failed: %s", type(exc).__name__)
 
     return findings
 
@@ -327,7 +327,7 @@ async def check_path_traversal(
                     except (httpx.RequestError, httpx.TimeoutException):
                         continue
 
-    except Exception as exc:
-        logger.debug("Path traversal check for %s failed: %s", url, exc)
+    except (httpx.RequestError, httpx.TimeoutException, ValueError) as exc:
+        logger.debug("Path traversal check failed: %s", type(exc).__name__)
 
     return findings

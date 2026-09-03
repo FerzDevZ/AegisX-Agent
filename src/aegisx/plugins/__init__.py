@@ -96,24 +96,24 @@ class PluginManager:
                 cls = ep.load()
                 self.register_scanner(ep.name, cls)
                 logger.info("Loaded scanner plugin from entry point: %s", ep.name)
-            except Exception as e:
-                logger.error("Failed to load scanner plugin '%s': %s", ep.name, e)
+            except (ImportError, AttributeError, TypeError) as e:
+                logger.error("Failed to load scanner plugin '%s': %s", ep.name, type(e).__name__)
 
         for ep in all_eps.select(group="aegisx.exploits"):
             try:
                 cls = ep.load()
                 self.register_exploit(ep.name, cls)
                 logger.info("Loaded exploit plugin from entry point: %s", ep.name)
-            except Exception as e:
-                logger.error("Failed to load exploit plugin '%s': %s", ep.name, e)
+            except (ImportError, AttributeError, TypeError) as e:
+                logger.error("Failed to load exploit plugin '%s': %s", ep.name, type(e).__name__)
 
         for ep in all_eps.select(group="aegisx.reporters"):
             try:
                 cls = ep.load()
                 self.register_reporter(ep.name, cls)
                 logger.info("Loaded reporter plugin from entry point: %s", ep.name)
-            except Exception as e:
-                logger.error("Failed to load reporter plugin '%s': %s", ep.name, e)
+            except (ImportError, AttributeError, TypeError) as e:
+                logger.error("Failed to load reporter plugin '%s': %s", ep.name, type(e).__name__)
 
     def load_from_directory(self, directory: Path) -> None:
         """Scan a directory for Python files and load plugins from them.
@@ -140,8 +140,8 @@ class PluginManager:
                 if hasattr(module, "register"):
                     module.register(self)
                     logger.info("Loaded plugin from file: %s", py_file.name)
-            except Exception as e:
-                logger.error("Failed to load plugin file '%s': %s", py_file.name, e)
+            except (ImportError, AttributeError, TypeError, SyntaxError) as e:
+                logger.error("Failed to load plugin file '%s': %s", py_file.name, type(e).__name__)
 
     def summary(self) -> dict[str, list[str]]:
         """Return a summary of all loaded plugins."""

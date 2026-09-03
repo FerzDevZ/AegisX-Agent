@@ -68,9 +68,14 @@ def scan(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     auth_token: Optional[str] = typer.Option(None, "--auth", help="Auth token for target"),
     user_agent: str = typer.Option(
-        "AegisxAgent/0.1.0 (Security Scanner)",
+        "AegisxAgent/0.1.1 (Security Scanner)",
         "--user-agent", "-ua",
         help="Custom User-Agent string",
+    ),
+    proxy: Optional[str] = typer.Option(
+        None,
+        "--proxy", "-p",
+        help="Proxy URL for requests (e.g. http://127.0.0.1:8080 for Burp/ZAP)",
     ),
 ) -> None:
     """Scan a target for vulnerabilities."""
@@ -96,6 +101,8 @@ def scan(
         config_kwargs["scope"] = [s.strip() for s in scope.split(",")]
     if auth_token:
         config_kwargs["auth_token"] = auth_token
+    if proxy:
+        config_kwargs["proxy"] = proxy
 
     config = AegisxConfig(**config_kwargs)
 

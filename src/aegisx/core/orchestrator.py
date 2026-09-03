@@ -155,8 +155,8 @@ class AegisxOrchestrator:
                     self.context.target_info["server"],
                 )
 
-        except Exception as e:
-            logger.error("[red]RECON[/] Failed to reach target: %s", e)
+        except httpx.RequestError as e:
+            logger.error("[red]RECON[/] Failed to reach target: %s", type(e).__name__)
 
     async def _phase_scan(self) -> None:
         """Phase 2: Run all enabled scanner modules."""
@@ -176,7 +176,16 @@ class AegisxOrchestrator:
             scan_tasks.append(task)
 
         if scan_tasks:
-            results = await asyncio.gather(*scan_tasks, return_exceptions=True)
+            # Apply per-phase timeout (default 300s for scan phase)
+            phase_timeout = getattr(self.config, "phase_timeout_seconds", 300)
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.gather(*scan_tasks, return_exceptions=True),
+                    timeout=phase_timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("[yellow]SCAN[/] Phase 2 timed out after %ds", phase_timeout)
+                results = []
             total_findings = sum(
                 len(r) for r in results if isinstance(r, list)
             )

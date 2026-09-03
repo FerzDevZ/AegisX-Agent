@@ -180,7 +180,7 @@ class NetworkScanner(BaseScanner):
                         await asyncio.wait_for(writer.drain(), timeout=1.0)
                         data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
                         banner = data.decode("utf-8", errors="ignore").strip()
-                    except Exception:
+                    except (asyncio.TimeoutError, ConnectionResetError, OSError):
                         pass
 
                     writer.close()
@@ -335,8 +335,8 @@ class NetworkScanner(BaseScanner):
                             result["cipher"] = cipher
                             result["tls_version"] = version
                             result["success"] = True
-                except Exception as e:
-                    result["error"] = str(e)
+                except (ssl.SSLError, socket.error, OSError) as e:
+                    result["error"] = type(e).__name__
                     result["success"] = False
                 return result
 
@@ -431,8 +431,8 @@ class NetworkScanner(BaseScanner):
                         ))
                         break
 
-        except Exception as e:
-            logger.debug("SSL/TLS check failed: %s", e)
+        except (ssl.SSLError, socket.error, OSError) as e:
+            logger.debug("SSL/TLS check failed: %s", type(e).__name__)
 
         return findings
 
@@ -569,8 +569,8 @@ class NetworkScanner(BaseScanner):
         except FileNotFoundError:
             # dig not available, skip
             pass
-        except Exception as e:
-            logger.debug("DNS check failed: %s", e)
+        except (FileNotFoundError, subprocess.SubprocessError, OSError) as e:
+            logger.debug("DNS check failed: %s", type(e).__name__)
 
         return findings
 
@@ -608,7 +608,7 @@ class NetworkScanner(BaseScanner):
                             remediation="Restrict access to non-standard HTTP ports.",
                         ))
 
-            except Exception:
+            except (httpx.RequestError, httpx.TimeoutException):
                 pass
 
         return findings

@@ -99,7 +99,7 @@ async def check_api_endpoints(config: AegisxConfig) -> list[Finding]:
                 except (httpx.RequestError, httpx.TimeoutException):
                     continue
 
-    except Exception as exc:
-        logger.debug("API endpoint check failed: %s", exc)
+    except (httpx.RequestError, httpx.TimeoutException, ValueError, KeyError) as exc:
+        logger.debug("API endpoint check failed: %s", type(exc).__name__)
 
     return findings

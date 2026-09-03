@@ -71,7 +71,7 @@ async def check_auth_bypass(
                 except (httpx.RequestError, httpx.TimeoutException) as exc:
                     logger.debug("Auth bypass check for %s failed: %s", url, exc)
 
-    except Exception as exc:
-        logger.warning("Auth bypass check failed: %s", exc)
+    except (httpx.RequestError, httpx.TimeoutException, ValueError) as exc:
+        logger.debug("Auth bypass check failed: %s", type(exc).__name__)
 
     return findings

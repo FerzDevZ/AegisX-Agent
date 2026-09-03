@@ -116,6 +116,17 @@ class AegisxConfig(BaseSettings):
         default_factory=dict, description="Cookies to include in requests"
     )
 
+    # --- Proxy Settings ---
+    proxy: str = Field(
+        default="", description="Proxy URL for routing requests (e.g. http://127.0.0.1:8080 for Burp/ZAP)"
+    )
+
+    # --- Request Limits ---
+    max_response_size: int = Field(
+        default=5_000_000, ge=100_000, le=50_000_000,
+        description="Max response body size in bytes"
+    )
+
     # --- Plugin System ---
     plugin_dirs: list[Path] = Field(
         default_factory=lambda: [Path("plugins/")],

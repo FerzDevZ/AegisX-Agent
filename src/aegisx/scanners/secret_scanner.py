@@ -83,7 +83,7 @@ class SecretScanner(BaseScanner):
             async with create_client(self.config) as client:
                 response = await client.get(self.config.target_url)
                 return response.status_code < 500
-        except Exception:
+        except httpx.RequestError:
             return False
 
     async def scan(self) -> list[Finding]:
@@ -143,8 +143,8 @@ class SecretScanner(BaseScanner):
                 # 4. Scan JavaScript files found in HTML
                 findings += await self._scan_js_files(client, response.text)
 
-        except Exception as e:
-            logger.error("Secret scan failed: %s", e)
+        except httpx.RequestError as e:
+            logger.debug("Secret scan request failed: %s", type(e).__name__)
 
         return findings
 
