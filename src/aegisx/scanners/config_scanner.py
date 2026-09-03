@@ -15,6 +15,7 @@ import httpx
 
 from aegisx.core.context import Finding, ScanContext, Severity
 from aegisx.scanners.base_scanner import BaseScanner
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("config_scanner")
@@ -36,15 +37,8 @@ class ConfigScanner(BaseScanner):
     async def validate_target(self) -> bool:
         """Validate target is reachable."""
         try:
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds,
-                follow_redirects=True,
-                verify=False,  # noqa: S501
-            ) as client:
-                response = await client.get(
-                    self.config.target_url,
-                    headers={"User-Agent": self.config.user_agent},
-                )
+            async with create_client(self.config) as client:
+                response = await client.get(self.config.target_url)
                 return response.status_code < 500
         except Exception:
             return False
@@ -54,11 +48,7 @@ class ConfigScanner(BaseScanner):
         findings = []
 
         try:
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds,
-                follow_redirects=True,
-                verify=False,  # noqa: S501
-            ) as client:
+            async with create_client(self.config) as client:
                 # Check main page
                 response = await client.get(
                     self.config.target_url,
@@ -79,11 +69,7 @@ class ConfigScanner(BaseScanner):
 
         # Check sensitive paths (async)
         try:
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds,
-                follow_redirects=True,
-                verify=False,  # noqa: S501
-            ) as client:
+            async with create_client(self.config) as client:
                 findings += await self._check_sensitive_paths(client)
         except Exception as e:
             logger.error("Sensitive paths check failed: %s", e)

@@ -8,6 +8,7 @@ Improvements:
 
 from __future__ import annotations
 
+import asyncio
 import re
 from urllib.parse import urljoin
 
@@ -15,6 +16,7 @@ import httpx
 
 from aegisx.core.context import Finding, ScanContext, Severity
 from aegisx.scanners.base_scanner import BaseScanner
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("secret_scanner")
@@ -78,15 +80,8 @@ class SecretScanner(BaseScanner):
     async def validate_target(self) -> bool:
         """Validate target is reachable."""
         try:
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds,
-                follow_redirects=True,
-                verify=False,  # noqa: S501
-            ) as client:
-                response = await client.get(
-                    self.config.target_url,
-                    headers={"User-Agent": self.config.user_agent},
-                )
+            async with create_client(self.config) as client:
+                response = await client.get(self.config.target_url)
                 return response.status_code < 500
         except Exception:
             return False
@@ -96,11 +91,7 @@ class SecretScanner(BaseScanner):
         findings = []
 
         try:
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds,
-                follow_redirects=True,
-                verify=False,  # noqa: S501
-            ) as client:
+            async with create_client(self.config) as client:
                 # 1. Scan main page
                 response = await client.get(
                     self.config.target_url,
@@ -121,23 +112,33 @@ class SecretScanner(BaseScanner):
                         f"Header: {header}",
                     )
 
-                # 3. Scan common paths
-                for path in self.SECRET_PATHS:
-                    try:
-                        url = urljoin(self.config.target_url, path)
-                        resp = await client.get(
-                            url,
-                            headers={"User-Agent": self.config.user_agent},
-                            follow_redirects=False,
-                        )
-                        if resp.status_code == 200:
-                            findings += self._scan_content(
-                                resp.text[:3000],
+                # 3. Scan common paths (parallel with semaphore)
+                sem = asyncio.Semaphore(10)
+
+                async def _check_path(path: str) -> list[Finding]:
+                    async with sem:
+                        try:
+                            url = urljoin(self.config.target_url, path)
+                            resp = await client.get(
                                 url,
-                                f"Path: {path}",
+                                headers={"User-Agent": self.config.user_agent},
+                                follow_redirects=False,
                             )
-                    except httpx.RequestError:
-                        continue
+                            if resp.status_code == 200:
+                                return self._scan_content(
+                                    resp.text[:3000],
+                                    url,
+                                    f"Path: {path}",
+                                )
+                        except httpx.RequestError:
+                            pass
+                        return []
+
+                path_results = await asyncio.gather(
+                    *[_check_path(p) for p in self.SECRET_PATHS]
+                )
+                for result in path_results:
+                    findings += result
 
                 # 4. Scan JavaScript files found in HTML
                 findings += await self._scan_js_files(client, response.text)
@@ -155,27 +156,39 @@ class SecretScanner(BaseScanner):
         script_pattern = re.compile(r'<script[^>]*src=["\']([^"\']+)["\']', re.IGNORECASE)
         js_urls = script_pattern.findall(html)
 
-        for js_url in js_urls[:5]:  # Limit to 5 JS files
-            try:
-                if js_url.startswith("//"):
-                    js_url = "https:" + js_url
-                elif js_url.startswith("/"):
-                    js_url = urljoin(self.config.target_url, js_url)
-                elif not js_url.startswith("http"):
-                    js_url = urljoin(self.config.target_url, js_url)
+        sem = asyncio.Semaphore(5)
 
-                resp = await client.get(
-                    js_url,
-                    headers={"User-Agent": self.config.user_agent},
-                )
-                if resp.status_code == 200:
-                    findings += self._scan_content(
-                        resp.text[:5000],
-                        js_url,
-                        f"JS File: {js_url}",
+        async def _scan_one(url: str) -> list[Finding]:
+            async with sem:
+                try:
+                    resp = await client.get(
+                        url,
+                        headers={"User-Agent": self.config.user_agent},
                     )
-            except httpx.RequestError:
-                continue
+                    if resp.status_code == 200:
+                        return self._scan_content(
+                            resp.text[:5000],
+                            url,
+                            f"JS File: {url}",
+                        )
+                except httpx.RequestError:
+                    pass
+                return []
+
+        resolved: list[str] = []
+        for raw in js_urls[:5]:
+            if raw.startswith("//"):
+                resolved.append("https:" + raw)
+            elif raw.startswith("/"):
+                resolved.append(urljoin(self.config.target_url, raw))
+            elif not raw.startswith("http"):
+                resolved.append(urljoin(self.config.target_url, raw))
+            else:
+                resolved.append(raw)
+
+        js_results = await asyncio.gather(*[_scan_one(u) for u in resolved])
+        for result in js_results:
+            findings += result
 
         return findings
 

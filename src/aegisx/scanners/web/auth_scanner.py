@@ -10,6 +10,7 @@ import httpx
 
 from aegisx.core.config import AegisxConfig
 from aegisx.core.context import Finding, Severity
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("auth_scanner")
@@ -29,11 +30,7 @@ async def check_auth_bypass(
     findings: list[Finding] = []
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
+        async with create_client(config) as client:
             for url in urls:
                 from urllib.parse import urlparse
                 parsed = urlparse(url)

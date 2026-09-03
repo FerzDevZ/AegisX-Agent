@@ -9,6 +9,7 @@ import httpx
 
 from aegisx.core.config import AegisxConfig
 from aegisx.core.context import Finding, Severity
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("cookie_scanner")
@@ -19,15 +20,8 @@ async def check_cookie_security(config: AegisxConfig) -> list[Finding]:
     findings: list[Finding] = []
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
-            response = await client.get(
-                config.target_url,
-                headers={"User-Agent": config.user_agent},
-            )
+        async with create_client(config) as client:
+            response = await client.get(config.target_url)
 
             cookie_headers = response.headers.get_list("set-cookie")
             is_https = config.target_url.startswith("https")

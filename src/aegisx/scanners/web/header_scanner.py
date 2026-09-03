@@ -12,6 +12,7 @@ import httpx
 
 from aegisx.core.config import AegisxConfig
 from aegisx.core.context import Finding, Severity
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("header_scanner")
@@ -72,15 +73,8 @@ async def check_security_headers(config: AegisxConfig) -> list[Finding]:
     findings: list[Finding] = []
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
-            response = await client.get(
-                config.target_url,
-                headers={"User-Agent": config.user_agent},
-            )
+        async with create_client(config) as client:
+            response = await client.get(config.target_url)
             headers = {k.lower(): v for k, v in response.headers.items()}
 
             # WAF/CDN challenge detection
@@ -129,16 +123,11 @@ async def check_cors(config: AegisxConfig) -> list[Finding]:
     findings: list[Finding] = []
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
+        async with create_client(config) as client:
             # Test 1: Wildcard origin
             response = await client.get(
                 config.target_url,
                 headers={
-                    "User-Agent": config.user_agent,
                     "Origin": "https://evil-attacker.com",
                 },
             )
@@ -217,15 +206,8 @@ async def check_info_disclosure(config: AegisxConfig) -> list[Finding]:
     findings: list[Finding] = []
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
-            response = await client.get(
-                config.target_url,
-                headers={"User-Agent": config.user_agent},
-            )
+        async with create_client(config) as client:
+            response = await client.get(config.target_url)
             headers = {k.lower(): v for k, v in response.headers.items()}
 
             # Server header version
@@ -307,15 +289,8 @@ async def check_http_methods(config: AegisxConfig) -> list[Finding]:
     findings: list[Finding] = []
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
-            response = await client.options(
-                config.target_url,
-                headers={"User-Agent": config.user_agent},
-            )
+        async with create_client(config) as client:
+            response = await client.options(config.target_url)
             allow = response.headers.get("allow", "").upper()
             dangerous = {"TRACE": "High", "DELETE": "Low", "PUT": "Low", "PATCH": "Low"}
 

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from aegisx.core.config import AegisxConfig, ReportFormat, ScanMode
 from aegisx.core.context import ScanContext, ScanStats
 from aegisx.plugins import get_plugin_manager, PluginManager
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger, setup_logging
 
 if TYPE_CHECKING:
@@ -131,15 +132,8 @@ class AegisxOrchestrator:
 
         # Basic tech fingerprinting via HTTP headers
         try:
-            import httpx
-
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds,
-                follow_redirects=True,
-                verify=False,  # noqa: S501
-            ) as client:
+            async with create_client(self.config) as client:
                 headers = self.config.get_auth_headers()
-                headers["User-Agent"] = self.config.user_agent
 
                 response = await client.get(
                     self.config.target_url,

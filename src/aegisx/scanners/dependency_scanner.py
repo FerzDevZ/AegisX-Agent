@@ -6,6 +6,7 @@ import subprocess
 
 from aegisx.core.context import Finding, ScanContext, Severity
 from aegisx.scanners.base_scanner import BaseScanner
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("dependency_scanner")
@@ -92,15 +93,8 @@ class DependencyScanner(BaseScanner):
         ]
 
         try:
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds,
-                follow_redirects=True,
-                verify=False,  # noqa: S501
-            ) as client:
-                response = await client.get(
-                    self.config.target_url,
-                    headers={"User-Agent": self.config.user_agent},
-                )
+            async with create_client(self.config) as client:
+                response = await client.get(self.config.target_url)
                 body = response.text
 
                 for vuln in known_vulnerable:

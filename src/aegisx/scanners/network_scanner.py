@@ -22,6 +22,7 @@ import httpx
 
 from aegisx.core.context import Finding, ScanContext, Severity
 from aegisx.scanners.base_scanner import BaseScanner
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("network_scanner")
@@ -584,15 +585,8 @@ class NetworkScanner(BaseScanner):
                 scheme = "https" if port in (8443, 4443) else "http"
                 url = f"{scheme}://{self._target_host}:{port}/"
 
-                async with httpx.AsyncClient(
-                    timeout=5,
-                    follow_redirects=True,
-                    verify=False,  # noqa: S501
-                ) as client:
-                    response = await client.get(
-                        url,
-                        headers={"User-Agent": self.config.user_agent},
-                    )
+                async with create_client(self.config) as client:
+                    response = await client.get(url)
 
                     # Check for exposed admin panels
                     body = response.text.lower()

@@ -30,6 +30,7 @@ from aegisx.scanners.web.param_scanner import (
     check_path_traversal,
 )
 from aegisx.scanners.web.api_scanner import check_api_endpoints
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("web_scanner")
@@ -46,15 +47,8 @@ class WebScanner(BaseScanner):
         import httpx
 
         try:
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds,
-                follow_redirects=True,
-                verify=False,  # noqa: S501
-            ) as client:
-                resp = await client.get(
-                    self.config.target_url,
-                    headers={"User-Agent": self.config.user_agent},
-                )
+            async with create_client(self.config) as client:
+                resp = await client.get(self.config.target_url)
                 return resp.status_code < 500
         except (httpx.RequestError, httpx.TimeoutException) as exc:
             logger.error("Cannot reach target: %s", exc)

@@ -12,6 +12,7 @@ import httpx
 
 from aegisx.core.config import AegisxConfig
 from aegisx.core.context import Finding, Severity
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("api_scanner")
@@ -42,17 +43,11 @@ async def check_api_endpoints(config: AegisxConfig) -> list[Finding]:
     base_url = f"{parsed.scheme}://{parsed.netloc}"
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
+        async with create_client(config) as client:
             for path in API_PATHS:
                 try:
                     url = f"{base_url}{path}"
-                    resp = await client.get(
-                        url, headers={"User-Agent": config.user_agent},
-                    )
+                    resp = await client.get(url)
                     body = resp.text.lower()
 
                     if resp.status_code == 200:

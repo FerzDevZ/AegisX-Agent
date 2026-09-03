@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 import httpx
 
 from aegisx.core.config import AegisxConfig
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("crawler")
@@ -84,11 +85,7 @@ async def crawl_pages(
 
     semaphore = asyncio.Semaphore(concurrency)
 
-    async with httpx.AsyncClient(
-        timeout=config.timeout_seconds,
-        follow_redirects=True,
-        verify=False,  # noqa: S501
-    ) as client:
+    async with create_client(config) as client:
         # 1. Fetch root page and extract links
         root_body = await _fetch_one(client, config.target_url, config, semaphore)
         if root_body is not None:

@@ -13,6 +13,7 @@ import httpx
 
 from aegisx.core.config import AegisxConfig
 from aegisx.core.context import Finding, Severity
+from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 
 logger = get_logger("param_scanner")
@@ -102,11 +103,7 @@ async def check_sqli(
     test_param_names: set[str] = set(existing_params.keys()) | set(INJECTABLE_PARAMS)
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
+        async with create_client(config) as client:
             # Get baseline for form extraction
             try:
                 baseline = await client.get(
@@ -208,11 +205,7 @@ async def check_xss(
     test_param_names: set[str] = set(existing_params.keys()) | {"search", "q", "query", "name", "category", "location"}
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
+        async with create_client(config) as client:
             # --- URL parameter XSS ---
             for param_name in test_param_names:
                 for payload in XSS_PAYLOADS[:3]:
@@ -304,11 +297,7 @@ async def check_path_traversal(
     parsed = urlparse(url)
 
     try:
-        async with httpx.AsyncClient(
-            timeout=config.timeout_seconds,
-            follow_redirects=True,
-            verify=False,  # noqa: S501
-        ) as client:
+        async with create_client(config) as client:
             for param in TRAVERSAL_PARAMS:
                 for payload in PATH_TRAVERSAL_PAYLOADS:
                     try:
