@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aegisx-agent"
-version = "0.1.0"
+version = "0.1.1"
 description = "Autonomous AI-powered cybersecurity penetration testing agent"
 readme = "README.md"
 license = "MIT"

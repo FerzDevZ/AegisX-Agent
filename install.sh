@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ╔══════════════════════════════════════════════════════════════╗
-# ║          🛡️  Aegisx-Agent Installer v0.1.0                 ║
+# ║          🛡️  Aegisx-Agent Installer v0.1.1                 ║
 # ║     Autonomous AI-Powered Security Scanner                 ║
 # ║     https://github.com/FerzDevZ/AegisX-Agent               ║
 # ╚══════════════════════════════════════════════════════════════╝
@@ -41,16 +41,16 @@ print_banner() {
     echo -e "${CYAN}"
     cat << 'BANNER'
 
-    _          _ _ _   _   _____                     _
-   / \   _ __ (_) | |_(_)_|__  /___ _ __ ___  _ __ (_)_ __   __ _
-  / _ \ | '__| | | __| | |/ / / _ \ '__/ _ \| '_ \| | '_ \ / _` |
- / ___ \| |   | | |_| |   < /  __/ | | (_) | | | | | | | | | (_| |
-/_/   \_\_|   |_|\__|_|_|_\\___|_|  \___/|_| |_|_|_| |_|\__, |
-                                                          |___/
+     █████╗ ███████╗██████╗ ███████╗███╗   ██╗████████╗██╗   ██╗██╗  ██╗
+    ██╔══██╗██╔════╝██╔══██╗██╔════╝████╗  ██║╚══██╔══╝██║   ██║██║ ██╔╝
+    ███████║█████╗  ██████╔╝█████╗  ██╔██╗ ██║   ██║   ██║   ██║█████╔╝
+    ██╔══██║██╔══╝  ██╔══██╗██╔══╝  ██║╚██╗██║   ██║   ██║   ██║██╔═██╗
+    ██║  ██║███████╗██║  ██║███████╗██║ ╚████║   ██║   ╚██████╔╝██║  ██╗
+    ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝
 BANNER
     echo -e "${NC}"
-    echo -e "  ${GRAY}v${AEGISX_VERSION} — Autonomous AI-Powered Security Scanner${NC}"
-    echo -e "  ${GRAY}https://github.com/FerzDevZ/AegisX-Agent${NC}"
+    echo -e "  ${BOLT} ${WHITE}v${AEGISX_VERSION}${NC} ${GRAY}— Autonomous AI-Powered Security Scanner${NC}"
+    echo -e "  ${SHIELD} ${GRAY}https://github.com/FerzDevZ/AegisX-Agent${NC}"
     echo ""
 }
 
@@ -59,19 +59,6 @@ log_success() { echo -e "  ${CHECK}  ${GREEN}$1${NC}"; }
 log_warn()    { echo -e "  ${WARN}  ${YELLOW}$1${NC}"; }
 log_error()   { echo -e "  ${CROSS}  ${RED}$1${NC}"; }
 log_step()    { echo -e "\n${MAGENTA}━━━ $1 ━━━${NC}"; }
-
-spinner() {
-    local pid=$1
-    local delay=0.1
-    local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
-    while kill -0 "$pid" 2>/dev/null; do
-        for (( i=0; i<${#spinstr}; i++ )); do
-            printf "\r  ${GRAY}  %s  Loading...${NC}" "${spinstr:$i:1}"
-            sleep $delay
-        done
-    done
-    printf "\r\033[K"
-}
 
 command_exists() {
     command -v "$1" &>/dev/null
@@ -91,7 +78,7 @@ detect_system() {
         *)        OS_NAME="Unknown";;
     esac
 
-    log_info "OS:       ${WHITE}${OS_NAME}$(uname -r)${NC}"
+    log_info "OS:       ${WHITE}${OS_NAME} $(uname -r)${NC}"
     log_info "Arch:     ${WHITE}${ARCH}${NC}"
     log_info "Shell:    ${WHITE}${SHELL}${NC}"
     log_info "User:     ${WHITE}$(whoami)${NC}"
@@ -254,12 +241,15 @@ setup_venv() {
 install_package() {
     log_step "📦 Installing Aegisx-Agent"
 
+    # Activate venv
     source "${VENV_DIR}/bin/activate"
 
     log_info "Upgrading pip..."
     pip install --upgrade pip -q 2>/dev/null
 
     log_info "Installing Aegisx-Agent and dependencies..."
+    # Make sure we're in the repo directory
+    cd "${INSTALL_DIR}"
     pip install -e ".[dev]" -q 2>/dev/null
 
     # Create bin symlink for easy access
@@ -268,6 +258,23 @@ install_package() {
 
     log_success "Aegisx-Agent ${WHITE}v${AEGISX_VERSION}${NC} installed!"
     deactivate 2>/dev/null || true
+}
+
+# ─── Clean Old Shell Entries ───────────────────────────────────
+clean_old_entries() {
+    local config_file="$1"
+
+    if [ ! -f "$config_file" ]; then
+        return
+    fi
+
+    # Remove ALL old aegisx entries (any path, any format)
+    # Pattern 1: alias aegisx='...'
+    sed -i '/^alias aegisx=/d' "$config_file" 2>/dev/null || true
+    # Pattern 2: export PATH=...aegisx...
+    sed -i '/# ─── Aegisx-Agent/d' "$config_file" 2>/dev/null || true
+    # Pattern 3: any line containing aegisx in PATH exports
+    sed -i '/export PATH=.*aegisx/d' "$config_file" 2>/dev/null || true
 }
 
 # ─── Setup Shell Profile ───────────────────────────────────────
@@ -285,29 +292,22 @@ setup_shell_profile() {
     fi
 
     if [ -n "${SHELL_CONFIG}" ]; then
-        ALIAS_LINE="alias aegisx='${VENV_DIR}/bin/aegisx'"
-        VENV_ACTIVATE="source ${VENV_DIR}/bin/activate"
+        log_info "Cleaning old entries from ${SHELL_CONFIG}..."
+        clean_old_entries "$SHELL_CONFIG"
 
-        # Remove old aliases first
-        sed -i '/# ─── Aegisx-Agent/,/aegisx/d' "${SHELL_CONFIG}" 2>/dev/null || true
-
-        # Check if alias already exists
-        if ! grep -q "alias aegisx=" "${SHELL_CONFIG}" 2>/dev/null; then
-            log_info "Adding alias to ${SHELL_CONFIG}..."
-            cat >> "${SHELL_CONFIG}" << EOF
+        # Add fresh entry
+        log_info "Adding alias to ${SHELL_CONFIG}..."
+        cat >> "${SHELL_CONFIG}" << EOF
 
 # ─── Aegisx-Agent ───
-${ALIAS_LINE}
+alias aegisx='${VENV_DIR}/bin/aegisx'
 export PATH="${BIN_DIR}:\$PATH"
 EOF
-            log_success "Shell alias added!"
-        else
-            log_info "Alias already exists in ${SHELL_CONFIG}"
-        fi
+        log_success "Shell alias added!"
 
         echo ""
         log_info "Run this to use without restarting your shell:"
-        echo -e "  ${WHITE}${ALIAS_LINE}${NC}"
+        echo -e "  ${WHITE}alias aegisx='${VENV_DIR}/bin/aegisx'${NC}"
     fi
 }
 
@@ -332,7 +332,7 @@ AEGISX_TIMEOUT_SECONDS=30
 AEGISX_MAX_REQUESTS_PER_SECOND=10.0
 
 # User Agent
-AEGISX_USER_AGENT=AegisxAgent/0.1.0 (Security Scanner)
+AEGISX_USER_AGENT=AegisxAgent/0.1.1 (Security Scanner)
 
 # Scanners to enable
 AEGISX_ENABLED_SCANNERS=["web_scanner","secret_scanner","config_scanner","dependency_scanner"]
@@ -449,7 +449,7 @@ EOF
         # Remove alias from shell config
         for config in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
             if [ -f "$config" ]; then
-                sed -i '/# ─── Aegisx-Agent/,/aegisx/d' "$config" 2>/dev/null || true
+                clean_old_entries "$config"
             fi
         done
 
