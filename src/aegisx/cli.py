@@ -349,10 +349,14 @@ def ai_config(
     config = AegisxConfig(
         target_url="https://config-check.invalid",
         ai_provider=provider,
-        ai_base_url=base_url or "",
-        ai_api_key=api_key or "",
-        ai_model=model or "",
     )
+    # Apply flags only when given, so .env values are not overridden
+    if base_url:
+        config.ai_base_url = base_url
+    if api_key:
+        config.ai_api_key = api_key
+    if model:
+        config.ai_model = model
     try:
         bot = AIProvider(config)
     except ValueError as exc:
