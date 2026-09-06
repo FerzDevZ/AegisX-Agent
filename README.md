@@ -4,487 +4,416 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
   <img src="https://img.shields.io/badge/OWASP-Top%2010-red" alt="OWASP">
   <img src="https://img.shields.io/badge/CVSS-v3.1-orange" alt="CVSS">
-  <img src="https://img.shields.io/badge/tests-206%20passing-brightgreen?logo=pytest&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-234%20passing-brightgreen?logo=pytest&logoColor=white" alt="Tests">
   <img src="https://img.shields.io/badge/CI-GitHub%20Actions-blue?logo=githubactions&logoColor=white" alt="CI">
+  <img src="https://img.shields.io/badge/Status-Alpha-purple" alt="Status">
 </p>
 
 <h1 align="center">🛡️ Aegisx-Agent</h1>
 
-<h3 align="center">Autonomous AI-Powered Cybersecurity Penetration Testing Agent</h3>
+<h3 align="center">Autonomous AI-Powered Security Scanner</h3>
 
 <p align="center">
-  An intelligent security scanner that autonomously discovers vulnerabilities,<br>
-  verifies exploits, and generates severity-ranked reports — all in one pipeline.
+  Bring your own LLM — Aegisx plans, scans, verifies, and reports.<br>
+  A complete penetration-testing pipeline: 5 scanners, 4 exploit verifiers,<br>
+  4 report formats, SQLite scan history, and SIEM-ready export.
 </p>
+
+---
+
+## Why Aegisx-Agent
+
+Most scanners stop at detection. Aegisx runs the full assessment loop:
+
+1. **Reconnaissance** — fingerprint the stack before touching it.
+2. **Scanning** — 5 specialized modules probe for 60+ weakness patterns.
+3. **Verification** — exploit modules confirm findings are real, not false positives.
+4. **Reporting** — Markdown, JSON, SARIF, and interactive HTML with CVSS v3.1 scoring.
+5. **AI operation (optional)** — plug in any OpenAI-compatible LLM and the agent runs the assessment autonomously.
+
+Everything runs locally. Every request is rate-limited and scope-checked. Scan history is persisted to SQLite so you can diff scans and verify fixes.
 
 ---
 
 ## ⚡ Features
 
-| Feature | Description |
+| Capability | Details |
 |---------|-------------|
-| 🔍 **OWASP Top 10 Scanning** | SQL Injection, XSS, CSRF, IDOR, SSRF, and more |
-| 🔐 **Secret Detection** | Hardcoded credentials, API keys, JWT tokens, private keys |
-| ⚙️ **Configuration Audit** | Missing security headers, CORS misconfig, debug mode leaks |
-| 📦 **Dependency Scanning** | CVE detection in third-party JS libraries |
-| 🔓 **Exploit Verification** | Confirm findings are actually exploitable (reduces false positives) |
-| 📊 **Multi-format Reports** | Markdown, JSON, SARIF (GitHub Code Scanning integration) |
-| 🎯 **CVSS v3.1 Scoring** | Industry-standard severity assessment with vector strings |
-| 🔌 **Plugin Architecture** | Extend with custom scanners via pluggy |
-| 🐳 **Docker Support** | Sandboxed exploit execution in isolated containers |
-| 🧠 **Knowledge Base** | OWASP, CWE, MITRE ATT&CK mappings built-in |
+| 🔍 **Web Scanner** | SQLi, XSS, path traversal injection; security headers; CORS; cookie flags; auth bypass; API endpoint discovery |
+| 🔐 **Secret Scanner** | 19 patterns: AWS keys, GitHub tokens, OpenAI keys, Stripe live keys, private keys, DB connection strings, and more |
+| ⚙️ **Config Scanner** | Debug mode leaks, default pages, directory listing, dangerous HTTP methods, server info disclosure, CORS misconfig |
+| 📦 **Dependency Scanner** | Known-vulnerable JS library detection (jQuery, AngularJS, Bootstrap, Lodash) |
+| 🌐 **Network Scanner** | TCP port scan (28 common ports), service fingerprinting, 18 dangerous-service checks, SSL certificate expiry |
+| 💥 **Exploit Verification** | SQLi, XSS, CSRF, SSRF — verify findings are actually exploitable before you trust them |
+| 📊 **Report Formats** | Markdown, JSON, SARIF v2.1.0 (GitHub Code Scanning), interactive HTML dashboard |
+| 🎯 **CVSS v3.1** | Vector strings, base scores, severity buckets |
+| 🧠 **Knowledge Base** | OWASP Top 10 2021 + CWE mappings + remediation guidance |
+| 🤖 **AI Agent Mode** | Any OpenAI-compatible endpoint (custom base URL + key + model); the LLM plans and executes via tool calling |
+| 📜 **Scan History** | SQLite persistence, target filtering, scan-to-scan diffing |
+| 🏢 **SIEM Export** | One event per finding, JSON-lines for Splunk HEC / Elastic / Sentinel |
+| 🔌 **Plugin System** | pluggy-based; add scanners, exploits, and reporters without touching core |
+| 🛡️ **Safe by Default** | Scope whitelist, token-bucket rate limiting, response size caps, phase timeouts |
 
 ---
 
 ## 🚀 Quick Start
 
-### One-Line Install (Recommended)
+### One-Line Install
 
 ```bash
 curl -sL https://raw.githubusercontent.com/FerzDevZ/AegisX-Agent/main/install.sh | bash
 ```
 
-This will automatically:
-- ✅ Detect your OS (Linux/macOS)
-- ✅ Install missing dependencies (Python 3.12+, pip, git)
-- ✅ Clone the repository to `~/.aegisx`
-- ✅ Create a virtual environment
-- ✅ Install all packages
-- ✅ Set up shell alias
-- ✅ Create default `.env` config
-- ✅ Verify the installation
+The installer:
+- Verifies Python 3.12+, pip, git
+- Clones the repo to `~/.aegisx`
+- Creates an isolated virtualenv
+- Installs the `aegisx` command
+- Uninstalls cleanly with `install.sh --uninstall`
 
 ### Manual Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/FerzDevZ/AegisX-Agent.git
 cd AegisX-Agent
-
-# Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Install in development mode
 pip install -e ".[dev]"
 ```
 
-### Uninstall
+### Docker
 
 ```bash
-~/.aegisx/uninstall.sh
-# or
-./install.sh uninstall
+docker build -t aegisx-agent .
+docker run --rm aegisx-agent scan https://example.com --report all
+docker run --rm -v "$(pwd)/reports:/app/reports" aegisx-agent scan https://example.com --report all
 ```
 
 ### First Scan
 
 ```bash
-# Quick scan
 aegisx scan https://example.com
-
-# Full scan with all scanners
-aegisx scan https://example.com --mode full --report all
-
-# Scan with authentication
-aegisx scan https://example.com --auth "your-jwt-token"
-
-# Route through Burp Suite / ZAP for deep inspection
-aegisx scan https://example.com --proxy http://127.0.0.1:8080
-
-# Verbose output with JSON report
-aegisx scan https://example.com -v --report json -o ./reports/
 ```
 
-### Full Pentest (with exploit verification)
-
-```bash
-aegisx pentest https://example.com
-```
-
-### Recon Only
-
-```bash
-aegisx recon https://example.com
-```
-
-### 🧠 AI Agent Mode (AegisX Brain)
-
-The AI agent turns Aegisx into an **autonomous AI pentester**: an LLM of
-your choice plans the assessment, runs the scanner tools, interprets
-results, and writes the final report.
-
-Works with **any OpenAI-compatible endpoint** — custom base URL + API
-key + model:
-
-```bash
-# Configure once via env (or .env):
-export AEGISX_AI_BASE_URL="https://api.deepseek.com/v1"
-export AEGISX_AI_API_KEY="sk-..."
-export AEGISX_AI_MODEL="deepseek-chat"
-
-# Autonomous AI pentest
-aegisx agent https://example.com
-
-# ...or everything inline with a custom endpoint
-aegisx agent https://example.com \
-  --ai-base-url https://your-gateway/v1 \
-  --ai-api-key sk-... \
-  --ai-model your-model \
-  --max-iterations 30
-
-# Built-in presets: deepseek, openai, groq, openrouter, ollama (local)
-aegisx agent https://example.com --ai-provider ollama
-
-# Test connectivity before running
-aegisx ai-config --base-url https://api.deepseek.com/v1 --api-key sk-... --model deepseek-chat
-
-# Ask questions about the most recent scan
-aegisx ask "explain the critical findings and how to fix them"
-
-# Authorize exploit-verification tools for the agent
-aegisx agent https://example.com --exploit
-```
-
-**Safety rails** (enforced by the harness, not the LLM):
-
-| Guardrail | Behavior |
-|-----------|----------|
-| Scope enforcement | Agent tools reject URLs outside the target scope |
-| Metadata protection | Cloud metadata IPs (169.254.169.254, …) always blocked |
-| Consent gate | Exploit tools only work with `--exploit` |
-| Budget | `--max-iterations` caps the loop; token limits per call |
-
-> The LLM decides *what to do*; the harness decides *what is allowed*.
-
-### Scan History & Trend Analysis
-
-Every scan is recorded in a local SQLite database, so you can track
-results over time and verify fixes:
-
-```bash
-# Show recent scans
-aegisx history
-
-# Filter by target
-aegisx history --target https://example.com
-
-# Export full history to JSON
-aegisx history --export history.json
-```
-
-### SIEM Integration (Splunk / Elastic / Sentinel)
-
-Export findings as flat, event-per-finding JSON-lines ready for SIEM
-ingestion (Splunk HEC, Filebeat, Sentinel):
-
-```bash
-# Export SIEM events after a scan
-aegisx scan https://example.com --siem events.jsonl
-```
+Exit code reflects the worst finding: `0` clean, `1` high, `2` critical — wire it straight into CI.
 
 ---
 
 ## 📖 CLI Reference
 
 ```
-🛡️ Aegisx-Agent — Autonomous Security Scanner
-
-Commands:
-  scan       Scan a target for vulnerabilities
-  pentest    Full penetration test with exploit verification
-  agent      Autonomous AI-driven pentest (AegisX Brain)
-  ask        Ask the AI about the most recent scan
-  ai-config  Test AI endpoint connectivity and show config
-  recon      Passive reconnaissance — gather target info
-  history    Show scan history recorded by previous runs
-  plugins    List all available scanner/exploit/reporter plugins
-  info       Show version and system information
+aegisx scan        Scan a target for vulnerabilities
+aegisx pentest     Full pentest with exploit verification (consent-gated)
+aegisx agent       Autonomous AI-driven pentest (AegisX Brain)
+aegisx ask         Ask the AI about the most recent scan
+aegisx ai-config   Test AI endpoint connectivity and show resolved config
+aegisx recon       Passive reconnaissance only
+aegisx history     Show / export scan history
+aegisx plugins     List registered scanners, exploits, reporters
+aegisx info        Version and component info
 ```
 
-### Scan Options
+### `aegisx scan` Options
 
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
-| `--mode` | `-m` | Scan mode: `passive`, `quick`, `full`, `stealth` | `quick` |
-| `--report` | `-r` | Report format: `markdown`, `json`, `sarif`, `html`, `all` | `markdown` |
+| `--mode` | `-m` | `passive` \| `quick` \| `full` \| `stealth` | `quick` |
+| `--report` | `-r` | `markdown` \| `json` \| `sarif` \| `html` \| `all` | `markdown` |
 | `--output` | `-o` | Report output directory | `reports/` |
-| `--proxy` | `-p` | Route requests through a proxy (Burp/ZAP) | none |
-| `--scope` | `-s` | Comma-separated domain whitelist | target domain |
-| `--siem` | — | Export SIEM JSON-lines events to a file | none |
-| `--scope` | `-s` | Comma-separated domain whitelist | target domain |
-| `--depth` | `-d` | Max crawl depth (1-10) | `3` |
+| `--scope` | `-s` | Comma-separated domain whitelist | target domain only |
+| `--depth` | `-d` | Max crawl depth (1–10) | `3` |
 | `--rps` | | Max requests per second | `10.0` |
-| `--exploit` | `-e` | Enable exploit verification | `false` |
-| `--verbose` | `-v` | Verbose output | `false` |
-| `--auth` | | Auth token for target | — |
-| `--user-agent` | `-ua` | Custom User-Agent string | `AegisxAgent/0.1.0` |
+| `--exploit` | `-e` | Enable exploit verification | off |
+| `--proxy` | `-p` | Route through Burp/ZAP (e.g. `http://127.0.0.1:8080`) | none |
+| `--auth` | | Auth token for the target | none |
+| `--user-agent` | `-ua` | Custom User-Agent | `AegisxAgent/x.y` |
+| `--siem` | | Export SIEM JSON-lines events to a file | none |
+| `--verbose` | `-v` | Verbose logging | off |
 
 ### Scan Modes
 
-| Mode | Description | Speed | Use Case |
-|------|-------------|-------|----------|
-| `passive` | Recon + fingerprinting only | ⚡⚡⚡ | Initial assessment |
-| `quick` | Common vulnerability checks | ⚡⚡ | Regular scans |
-| `full` | Comprehensive + exploit verification | ⚡ | Pre-production audit |
-| `stealth` | Low-profile to avoid detection | ⚡ | Authorized pentests |
+| Mode | Behavior | Speed |
+|------|-------------|-------|
+| `passive` | Recon + fingerprinting, no active probing | ⚡⚡⚡ |
+| `quick` | Common vulnerability checks | ⚡⚡ |
+| `full` | All scanners + exploit verification | ⚡ |
+| `stealth` | Slow, low-profile probing | ⚡ |
 
-### Exit Codes
+---
 
-| Code | Meaning |
-|------|---------|
-| `0` | Scan complete — no critical/high findings |
-| `1` | Scan complete — high findings detected |
-| `2` | Scan complete — critical findings detected |
+## 🧠 AI Agent Mode (AegisX Brain)
+
+Aegisx Brain is an agent loop in the DeepSeek-harness style: the LLM
+decides *what to do next*, the harness decides *what is allowed*. The
+model plans the assessment and calls tools; the harness enforces scope,
+consent, and budget on every call.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  YOUR LLM (custom base_url + api_key + model)            │
+│  OpenAI · DeepSeek · Groq · OpenRouter · Ollama · ...    │
+│                       ⇅ OpenAI-compatible tool calling   │
+├──────────────────────────────────────────────────────────┤
+│  AGENT LOOP (budget-capped, duplicate-damped)            │
+│  pentest methodology prompt → tool calls → results → ... │
+├──────────────────────────────────────────────────────────┤
+│  TOOL REGISTRY (scope-enforced, consent-gated)           │
+│  run_recon · run_scanner · verify_exploit                │
+│  get_findings · http_request · generate_report           │
+├──────────────────────────────────────────────────────────┤
+│  SCAN ENGINE: 5 scanners · 4 exploits · 4 reporters      │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Setup (once)
+
+Configure via environment (works from any directory):
+
+```bash
+# Global config lives at ~/.aegisx/.env — a .env in your project overrides it
+export AEGISX_AI_BASE_URL="https://api.deepseek.com/v1"
+export AEGISX_AI_API_KEY="sk-..."
+export AEGISX_AI_MODEL="deepseek-chat"
+```
+
+Or per-run with flags:
+
+```bash
+aegisx agent https://example.com \
+  --ai-base-url "https://api.deepseek.com/v1" \
+  --ai-api-key "sk-..." \
+  --ai-model "deepseek-chat"
+```
+
+Built-in presets — `custom` (default), `deepseek`, `openai`, `groq`, `openrouter`, `ollama` (local, free, no key):
+
+```bash
+aegisx agent https://example.com --ai-provider ollama
+```
+
+### Usage
+
+```bash
+# Verify connectivity and show the resolved config
+aegisx ai-config
+
+# Autonomous assessment: the AI reconnoiters, scans, interprets, reports
+aegisx agent https://example.com
+
+# Larger budget, exploit tools authorized
+aegisx agent https://example.com --max-iterations 40 --exploit
+
+# Q&A over the most recent scan (reads ~/.aegisx/history.db)
+aegisx ask "which finding is the most urgent and how do I fix it?"
+```
+
+### Safety Rails
+
+The harness — not the LLM — enforces these, and they are unit-tested:
+
+| Guardrail | Behavior |
+|-----------|----------|
+| Scope enforcement | `http_request` and exploit tools reject URLs outside the whitelist |
+| Metadata blocking | `169.254.169.254` and friends are always refused (SSRF self-targeting) |
+| Consent gate | `verify_exploit` requires the `--exploit` flag |
+| Iteration budget | `--max-iterations` (default 25) caps the loop |
+| Duplicate damping | Repeated identical tool calls are cached, annotated, then blocked |
+| Key hygiene | API keys are never logged in full |
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-aegisx-agent/
-├── src/aegisx/
-│   ├── core/                    # 🧠 Core engine
-│   │   ├── orchestrator.py      #    3-phase pipeline coordinator
-│   │   ├── config.py            #    Pydantic settings management
-│   │   ├── context.py           #    Scan state & findings tracker
-│   │   └── exceptions.py        #    Exception hierarchy
-│   │
-│   ├── scanners/                # 🔍 Vulnerability scanners
-│   │   ├── base_scanner.py      #    Abstract scanner interface
-│   │   ├── web_scanner.py       #    OWASP Top 10 (SQLi, XSS, CORS, headers)
-│   │   ├── secret_scanner.py    #    API keys, tokens, passwords
-│   │   ├── config_scanner.py    #    Debug mode, default pages, HTTP methods
-│   │   └── dependency_scanner.py#    JS library CVE detection
-│   │
-│   ├── exploits/                # 💥 Exploit verification
-│   │   └── base_exploit.py      #    Abstract exploit interface
-│   │
-│   ├── reporters/               # 📊 Report generation
-│   │   ├── base_reporter.py     #    Abstract reporter interface
-│   │   ├── markdown_reporter.py #    Human-readable Markdown report
-│   │   ├── json_reporter.py     #    Machine-readable JSON output
-│   │   ├── sarif_reporter.py    #    SARIF v2.1.0 (GitHub integration)
-│   │   └── cvss.py              #    CVSS v3.1 scoring engine
-│   │
-│   ├── knowledge/               # 🧠 Security knowledge base
-│   │   └── owasp_top10.py       #    OWASP Top 10 2021 + CWE mappings
-│   │
-│   ├── plugins/                 # 🔌 Plugin management
-│   │   └── __init__.py          #    pluggy-based plugin system
-│   │
-│   ├── utils/                   # 🛠️ Shared utilities
-│   │   └── logger.py            #    Structured logging (Rich)
-│   │
-│   └── cli.py                   # 🖥️ CLI entry point (Typer)
+src/aegisx/
+├── core/                     # Engine
+│   ├── orchestrator.py       #   3-phase pipeline: recon → scan → report
+│   ├── config.py             #   Layered settings (env > .env > ~/.aegisx/.env)
+│   ├── context.py            #   ScanContext, Finding, ScanStats
+│   └── exceptions.py         #   Exception hierarchy
 │
-├── tests/                       # 🧪 Test suite
-│   ├── conftest.py              #    Shared fixtures
-│   ├── test_config.py           #    Config tests
-│   ├── test_context.py          #    Context & finding tests
-│   ├── test_exceptions.py       #    Exception hierarchy tests
-│   ├── test_cvss.py             #    CVSS scoring tests
-│   ├── test_owasp.py            #    OWASP knowledge base tests
-│   └── test_plugins.py          #    Plugin manager tests
+├── scanners/                 # Detection modules (BaseScanner)
+│   ├── web_scanner.py        #   OWASP Top 10 orchestrator
+│   ├── web/                  #   crawler · header · cookie · auth
+│   │                         #   · api · param (SQLi/XSS/traversal)
+│   ├── secret_scanner.py     #   19 credential patterns
+│   ├── config_scanner.py     #   Misconfiguration checks
+│   ├── dependency_scanner.py #   Vulnerable JS libraries
+│   └── network_scanner.py    #   Ports, services, SSL/TLS
 │
-├── install.sh                   # 🛡️ One-line installer
-├── pyproject.toml               # 📦 Project configuration
-├── Dockerfile                   # 🐳 Docker build
-├── .env.example                 # 🔑 Environment variable template
-└── README.md                    # 📖 This file
+├── exploits/                 # Verification modules (BaseExploit)
+│   ├── sqli_exploit.py       #   Error-based + boolean-based SQLi
+│   ├── xss_exploit.py        #   Reflected XSS probing
+│   ├── csrf_exploit.py       #   Missing-token CSRF checks
+│   └── ssrf_exploit.py       #   Blind SSRF probes
+│
+├── reporters/                # Output modules (BaseReporter)
+│   ├── markdown_reporter.py  #   Human-readable assessment
+│   ├── json_reporter.py      #   Machine-readable
+│   ├── sarif_reporter.py     #   SARIF v2.1.0 for GitHub
+│   ├── html_reporter.py      #   Self-contained interactive dashboard
+│   └── cvss.py               #   CVSS v3.1 scoring engine
+│
+├── ai/                       # AegisX Brain
+│   ├── provider.py           #   OpenAI-compatible client (httpx, no SDK)
+│   ├── tools.py              #   Tool schemas + scope-enforced dispatcher
+│   ├── agent.py              #   Budget-capped tool-calling loop
+│   └── prompts.py            #   Pentest methodology system prompt
+│
+├── knowledge/                # OWASP Top 10 + CWE mapping
+├── plugins/                  # pluggy registry + entry-point loader
+└── utils/                    # http_client (factory) · ratelimit
+                              # history (SQLite) · siem_export · logger
 ```
 
 ### Three-Phase Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    AEGISX-AGENT PIPELINE                    │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  PHASE 1: RECONNAISSANCE                                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Target Reach │→ │ Tech Stack   │→ │ Security     │     │
-│  │ Validation   │  │ Detection    │  │ Header Check │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                                                             │
-│  PHASE 2: SCANNING & EXPLOITATION                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Web Scanner  │→ │ Secret Scan  │→ │ Config Audit │     │
-│  │ (OWASP Top10)│  │ (API Keys)   │  │ (Headers)    │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                                                             │
-│  PHASE 3: REPORTING & REMEDIATION                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ CVSS Scoring │→ │ Report Gen   │→ │ Remediation  │     │
-│  │ & Triage     │  │ MD/JSON/SARIF│  │ Guidance     │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+PHASE 1  RECON              → reachability, tech stack, headers
+PHASE 2  SCAN (+ EXPLOIT)   → scanners in parallel → optional verification
+PHASE 3  REPORT             → CVSS scoring → MD/JSON/SARIF/HTML → audit log
 ```
+
+Each phase has a timeout; a hung scanner cannot hang the scan. Every
+completed scan is appended to `~/.aegisx/history.db` and audited under
+`reports/.audit/`.
+
+---
+
+## 📜 Scan History
+
+Every scan lands in SQLite. Track trends and verify fixes across runs:
+
+```bash
+aegisx history                          # recent scans
+aegisx history --target https://a.com   # filter by target
+aegisx history --export history.json    # export everything
+```
+
+Programmatic diffing (what got fixed, what regressed):
+
+```python
+from aegisx.utils.history import ScanHistory
+
+db = ScanHistory()
+diff = db.compare_scans(old_scan_id, new_scan_id)
+
+print(diff["new_findings"])      # regressions
+print(diff["resolved_findings"]) # fixed since last scan
+print(diff["severity_delta"])    # per-severity count changes
+```
+
+---
+
+## 🏢 SIEM Integration
+
+Export findings as flat, event-per-finding JSON-lines with ECS-style
+fields (`event.*`, `vulnerability.*`, `url.*`):
+
+```bash
+aegisx scan https://example.com --siem events.jsonl
+```
+
+```json
+{"event": {"kind": "alert", "severity": "critical", "dataset": "aegisx.findings"},
+ "vulnerability": {"id": "VF-3F9A2C11", "title": "SQL Injection", "cwe": "CWE-89", "score": 9.8},
+ "url": {"full": "https://example.com/search"}, "@timestamp": "2026-09-06T09:21:06+00:00"}
+```
+
+Ingest with Splunk HEC, Filebeat, or Azure Sentinel — one line, one event.
 
 ---
 
 ## 🔌 Plugin System
 
-Aegisx-Agent uses a pluggy-based architecture. Community developers can write custom scanners without modifying core code.
-
-### Custom Scanner Example
-
-```python
-# plugins/my_scanner.py
-from aegisx.scanners.base_scanner import BaseScanner
-from aegisx.core.context import Finding, ScanContext, Severity
-
-class MyCustomScanner(BaseScanner):
-    name = "my_scanner"
-    description = "My custom vulnerability scanner"
-
-    async def validate_target(self) -> bool:
-        return bool(self.config.target_url)
-
-    async def scan(self) -> list[Finding]:
-        findings = []
-        # Your scanning logic here
-        findings.append(Finding(
-            title="Custom Finding",
-            description="Found something interesting",
-            severity=Severity.MEDIUM,
-            cwe_id="CWE-000",
-        ))
-        return findings
-
-# Register the plugin
-def register(manager):
-    manager.register_scanner("my_scanner", MyCustomScanner)
-```
-
-### Entry Point Registration
-
-Third-party packages can register via `pyproject.toml`:
+Community plugins register through entry points — no core changes:
 
 ```toml
+# your package's pyproject.toml
 [project.entry-points."aegisx.scanners"]
 my_scanner = "my_package.scanner:MyScanner"
 ```
 
----
+Minimal scanner:
 
-## 🐳 Docker
+```python
+from aegisx.core.config import Severity
+from aegisx.core.context import Finding
+from aegisx.scanners.base_scanner import BaseScanner
 
-```bash
-# Build the image
-docker build -t aegisx-agent .
+class MyScanner(BaseScanner):
+    name = "my_scanner"
+    description = "Detects exposed debug endpoints"
 
-# Run a scan
-docker run --rm aegisx-agent scan https://example.com
+    async def validate_target(self) -> bool:
+        return True
 
-# Run with report output
-docker run --rm -v $(pwd)/reports:/app/reports aegisx-agent scan https://example.com --report all
+    async def scan(self) -> list[Finding]:
+        # create_client() gives you proxy, rate limiting, and timeouts for free
+        from aegisx.utils.http_client import create_client
+
+        findings: list[Finding] = []
+        async with create_client(self.config) as client:
+            for path in ("/debug", "/_debug/vars"):
+                resp = await client.get(f"{self.config.target_url}{path}")
+                if resp.status_code == 200:
+                    findings.append(Finding(
+                        title="Debug Endpoint Exposed",
+                        description=f"{path} is publicly reachable.",
+                        severity=Severity.HIGH,
+                        cwe_id="CWE-489",
+                        url=f"{self.config.target_url}{path}",
+                    ))
+        return findings
 ```
+
+Full walkthrough — including exploits and reporters — in
+[docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md).
 
 ---
 
 ## ⚙️ Configuration
 
-### Environment Variables
-
-All settings use the `AEGISX_` prefix:
+All settings use the `AEGISX_` prefix. Resolution order (highest wins):
+CLI flags → environment variables → `./.env` → `~/.aegisx/.env`.
 
 ```bash
-# Scan Settings
+# Scan
 AEGISX_SCAN_MODE=full
 AEGISX_MAX_DEPTH=5
-AEGISX_TIMEOUT_SECONDS=60
-AEGISX_USER_AGENT=MyCustomAgent/1.0
+AEGISX_MAX_REQUESTS_PER_SECOND=10
+AEGISX_TIMEOUT_SECONDS=30
 
-# Exploit Settings
-AEGISX_EXPLOIT_VERIFICATION=true
-AEGISX_SANDBOX_ENABLED=true
+# Auth & proxy
+AEGISX_AUTH_TOKEN=your-token
+AEGISX_PROXY=http://127.0.0.1:8080
 
 # Reporting
-AEGISX_REPORT_FORMAT=sarif
+AEGISX_REPORT_FORMAT=all
 AEGISX_REPORT_OUTPUT=./reports/
 
-# Logging
-AEGISX_LOG_LEVEL=DEBUG
-AEGISX_VERBOSE=true
+# AI agent
+AEGISX_AI_BASE_URL=https://api.deepseek.com/v1
+AEGISX_AI_API_KEY=sk-...
+AEGISX_AI_MODEL=deepseek-chat
+AEGISX_AI_MAX_ITERATIONS=25
 ```
 
-See `.env.example` for the complete list.
-
-### Configuration via Code
+Python API:
 
 ```python
+import asyncio
 from aegisx.core.config import AegisxConfig, ScanMode
 from aegisx.core.orchestrator import AegisxOrchestrator
 
 config = AegisxConfig(
     target_url="https://example.com",
-    scan_mode=ScanMode.FULL,
-    exploit_verification=True,
-    scope=["example.com", "api.example.com"],
+    scan_mode=ScanMode.QUICK,
+    scope=["example.com"],
 )
 
-orchestrator = AegisxOrchestrator(config)
-stats = await orchestrator.run()
-```
-
----
-
-## 📊 Report Examples
-
-### Markdown Report
-
-```markdown
-# 🛡️ Aegisx-Agent Security Assessment Report
-
-## Executive Summary
-⚠️ **Risk Level: HIGH**
-
-A total of **6** security issue(s) were identified.
-
-## 🟠 HIGH Findings (1)
-
-### VF-96FDD70C: CORS Origin Reflection
-
-| Field | Value |
-|-------|-------|
-| **Severity** | HIGH |
-| **CVSS** | 7.4 |
-| **CWE** | CWE-942 |
-| **OWASP** | A05:2021 |
-
-**Description:** The server reflects the attacker-controlled Origin header.
-**Remediation:** Validate Origin against a whitelist before reflecting it.
-```
-
-### JSON Output (for CI/CD)
-
-```json
-{
-  "scan_id": "a1b2c3d4e5f6",
-  "target_url": "https://example.com",
-  "stats": {
-    "total_findings": 6,
-    "critical": 0,
-    "high": 1,
-    "medium": 3,
-    "low": 2
-  },
-  "findings": [...]
-}
-```
-
-### SARIF (GitHub Code Scanning)
-
-```json
-{
-  "version": "2.1.0",
-  "runs": [{
-    "tool": { "driver": { "name": "Aegisx-Agent" } },
-    "results": [...]
-  }]
-}
+stats = asyncio.run(AegisxOrchestrator(config).run())
+print(stats.total_findings, stats.critical_count)
 ```
 
 ---
@@ -492,124 +421,75 @@ A total of **6** security issue(s) were identified.
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=aegisx --cov-report=html
-
-# Run specific test file
-pytest tests/test_cvss.py -v
-
-# Run tests matching a pattern
-pytest -k "severity" -v
+pytest -v                                  # 234 tests
+pytest --cov=aegisx --cov-report=term      # with coverage
+ruff check src tests                       # lint
+mypy src/aegisx                            # types
 ```
 
----
-
-## 🛡️ Security Checks
-
-| Check | CWE | OWASP | Severity |
-|-------|-----|-------|----------|
-| SQL Injection | CWE-89 | A03:2021 | Critical |
-| Cross-Site Scripting (XSS) | CWE-79 | A03:2021 | High |
-| CORS Misconfiguration | CWE-942 | A05:2021 | High |
-| Missing Security Headers | CWE-319 | A05:2021 | Medium |
-| Server Version Disclosure | CWE-200 | A05:2021 | Low |
-| Exposed API Keys | CWE-798 | A07:2021 | Critical |
-| Path Traversal | CWE-22 | A01:2021 | High |
-| Debug Mode Enabled | CWE-215 | A05:2021 | Medium |
-| Directory Listing | CWE-548 | A01:2021 | Medium |
-| Vulnerable Libraries | CWE-1104 | A06:2021 | Varies |
+All LLM and HTTP traffic is mocked (`respx`) — the suite never touches
+the network. CI runs lint + typecheck + tests on Python 3.11/3.12 for
+every push and PR.
 
 ---
 
 ## ⚠️ Legal Notice
 
 **Only scan targets you have explicit authorization to test.**
+Unauthorized scanning is illegal in most jurisdictions.
 
-Unauthorized scanning, penetration testing, or security assessment of systems you do not own or have written permission to test is **illegal** in most jurisdictions.
+Aegisx-Agent is built to keep authorized work safe:
 
-Aegisx-Agent includes:
-- Authorization confirmation before full pentest mode
-- Scope whitelist enforcement
-- Rate limiting to prevent DoS
-- Detailed audit logging
+- Scope whitelist enforced on every request and tool call
+- Cloud metadata endpoints always blocked (anti-SSRF self-targeting)
+- Token-bucket rate limiting to avoid degrading the target
+- Consent prompts before exploit verification
+- JSON audit logs of every scan
 
 ---
 
 ## 🗺️ Roadmap
 
-- [x] Core engine with 3-phase pipeline
-- [x] OWASP Top 10 web scanner
-- [x] Secret detection scanner
-- [x] Configuration audit scanner
-- [x] Dependency scanner
-- [x] CVSS v3.1 scoring engine
-- [x] Markdown/JSON/SARIF/HTML reporters
-- [x] Plugin architecture
-- [x] CLI with Typer + Rich
-- [x] Docker support
-- [x] **Exploit verification modules** (SQLi, XSS, CSRF, SSRF)
-- [x] **Network scanner** (port scanning, service enumeration)
-- [x] **HTML reporter** (interactive dashboard with dark mode)
-- [x] **Scan history** (SQLite, scan-to-scan diffing)
-- [x] **SIEM export** (JSON-lines for Splunk/Elastic/Sentinel)
-- [x] **Proxy support** (route through Burp/ZAP)
-- [x] **Rate limiting & scope enforcement** (safe scanning)
-- [x] **GitHub Actions CI/CD** (lint + typecheck + tests)
-- [ ] **SSRF scanner** (server-side request forgery detection)
-- [ ] **Auth scanner** (JWT, session, OAuth testing)
-- [ ] **Continuous monitoring mode** (scheduled scans)
-- [ ] **Slack/Discord notifications** (alert on findings)
-- [ ] **Web dashboard** (scan history, trend analysis)
+- [x] Core engine, 5 scanners, 4 exploit verifiers, 4 report formats
+- [x] AI agent mode with bring-your-own LLM
+- [x] Scan history + SIEM export + proxy support
+- [x] GitHub Actions CI
+- [ ] SSRF *detection* scanner (the exploit verifier already exists)
+- [ ] Auth scanner (JWT, session, OAuth testing)
+- [ ] Continuous monitoring (scheduled scans + diff alerts)
+- [ ] Slack/Discord notifications
+- [ ] Web dashboard
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here's how:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-scanner`)
-3. **Commit** your changes (`git commit -m 'Add amazing scanner'`)
-4. **Push** to the branch (`git push origin feature/amazing-scanner`)
-5. **Open** a Pull Request
-
-### Development Setup
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Short version:
 
 ```bash
-# Install dev dependencies
 pip install -e ".[dev]"
-
-# Run linter
-ruff check src/ tests/
-
-# Run type checker
-mypy src/
-
-# Run tests
+ruff check src tests && ruff format src tests
 pytest -v
 ```
+
+Every feature needs at least one happy-path test and two edge-case
+tests. Conventional Commits with emoji prefixes. Update
+`CHANGELOG.md` under **Unreleased**.
 
 ---
 
 ## 📄 License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
 
 ---
 
 ## 🙏 Acknowledgments
 
-- [OWASP Top 10](https://owasp.org/Top10/) — Vulnerability taxonomy
-- [CVSS v3.1](https://www.first.org/cvss/v3.1/specification-document) — Severity scoring
-- [CWE](https://cwe.mitre.org/) — Weakness enumeration
-- [MITRE ATT&CK](https://attack.mitre.org/) — Adversary tactics
-- [Typer](https://typer.tiangolo.com/) — CLI framework
-- [Rich](https://rich.readthedocs.io/) — Terminal formatting
-- [Pydantic](https://docs.pydantic.dev/) — Settings management
-- [pluggy](https://pluggy.readthedocs.io/) — Plugin system
+- [OWASP Top 10](https://owasp.org/Top10/) — vulnerability taxonomy
+- [CVSS v3.1](https://www.first.org/cvss/v3.1/specification-document) — severity scoring
+- [CWE](https://cwe.mitre.org/) — weakness enumeration
+- [Typer](https://typer.tiangolo.com/) · [Rich](https://rich.readthedocs.io/) · [Pydantic](https://docs.pydantic.dev/) · [pluggy](https://pluggy.readthedocs.io/) — foundations
 
 ---
 
@@ -618,5 +498,5 @@ MIT License — see [LICENSE](LICENSE) for details.
 </p>
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/FerzDevZ">FerzDevZ</a></sub>
+  <sub>Built by <a href="https://github.com/FerzDevZ">FerzDevZ</a></sub>
 </p>

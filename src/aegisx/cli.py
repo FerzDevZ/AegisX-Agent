@@ -68,7 +68,7 @@ def scan(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     auth_token: str | None = typer.Option(None, "--auth", help="Auth token for target"),
     user_agent: str = typer.Option(
-        "AegisxAgent/0.1.1 (Security Scanner)",
+        f"AegisxAgent/{__version__} (Security Scanner)",
         "--user-agent", "-ua",
         help="Custom User-Agent string",
     ),
@@ -539,7 +539,7 @@ def _print_banner() -> None:
         "/_/   \\_\\_|   |_|\\__|_|_|\\_\\\\___|_|  \\___/|_| |_|_|_| |_|\\__, |\n"
         "                                                           |___/ "
         "[/]\n"
-        "[dim]  v0.1.0 — Autonomous Security Scanner[/]\n"
+        f"[dim]  v{__version__} — Autonomous Security Scanner[/]\n"
     )
     console.print(banner)
 
