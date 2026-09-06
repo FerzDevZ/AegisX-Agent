@@ -103,13 +103,11 @@ class AegisxOrchestrator:
 
         # Persist scan to local history database (best-effort)
         try:
-            from pathlib import Path
-
             from aegisx.utils.history import ScanHistory
 
-            history = ScanHistory(
-                db_path=Path(self.config.report_output) / "history.db"
-            )
+            # Canonical location (~/.aegisx/history.db) so the CLI can
+            # find scans from any working directory.
+            history = ScanHistory()
             history.record_scan(
                 scan_id=self.context.scan_id,
                 target=self.config.target_url,

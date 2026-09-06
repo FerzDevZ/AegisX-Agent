@@ -127,12 +127,20 @@ class TestOrchestratorIntegration:
     """Scan pipeline must write history automatically."""
 
     @pytest.mark.asyncio
-    async def test_scan_records_history(self, tmp_path: Path):
+    async def test_scan_records_history(self, tmp_path: Path, monkeypatch):
         import httpx
         import respx
 
         from aegisx.core.config import AegisxConfig, ScanMode
         from aegisx.core.orchestrator import AegisxOrchestrator
+        from aegisx.utils import history as history_module
+
+        # Redirect the canonical history DB into the test's tmp dir
+        monkeypatch.setattr(
+            history_module.Path,
+            "home",
+            staticmethod(lambda: tmp_path),
+        )
 
         config = AegisxConfig(
             target_url="https://test.example.com",
@@ -149,7 +157,7 @@ class TestOrchestratorIntegration:
             orch = AegisxOrchestrator(config)
             await orch.run()
 
-        db = ScanHistory(db_path=tmp_path / "history.db")
+        db = ScanHistory()  # canonical ~/.aegisx/history.db → redirected
         scans = db.get_scans()
         assert len(scans) == 1
         assert scans[0]["target"] == "https://test.example.com"
