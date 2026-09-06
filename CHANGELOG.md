@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **AI agent SSRF probing** (`probe_ssrf` tool, 8 tools total): the Brain now discovers URL-taking parameters and autonomously probes them for open redirects (CWE-601) and blind SSRF (CWE-918); the pentest methodology prompt includes a dedicated SSRF step, findings land in the scan context automatically, and out-of-scope probe requests are blocked as usual
+
 - **SSRF detection scanner** (`ssrf_scanner`, enabled by default):
   - Discovers URL-taking parameters (40+ canonical names: `url`, `next`, `redirect`, `callback`, `fetch`, …) across crawled pages
   - **Open-redirect detection** (CWE-601, MEDIUM): probes parameters with a benign external value; flags 3xx responses redirecting off-origin

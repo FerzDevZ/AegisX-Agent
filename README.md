@@ -161,8 +161,9 @@ consent, and budget on every call.
 │  TOOL REGISTRY (scope-enforced, consent-gated)           │
 │  run_recon · run_scanner · verify_exploit                │
 │  get_findings · http_request · generate_report           │
+│  compare_history · probe_ssrf                            │
 ├──────────────────────────────────────────────────────────┤
-│  SCAN ENGINE: 5 scanners · 4 exploits · 4 reporters      │
+│  SCAN ENGINE: 6 scanners · 4 exploits · 4 reporters      │
 └──────────────────────────────────────────────────────────┘
 ```
 

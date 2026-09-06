@@ -112,6 +112,24 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "new_scan_id": {"type": "string", "description": "Latest scan ID (optional)"},
         },
     ),
+    _f(
+        "probe_ssrf",
+        "Discover URL-taking parameters on the target and probe them for "
+        "open redirects (CWE-601) and blind SSRF (CWE-918). All probes are "
+        "benign and stay inside the authorized scope. Call after run_scanner "
+        "on targets with URL parameters. Optionally probe a specific page "
+        "and parameter.",
+        {
+            "url": {
+                "type": "string",
+                "description": "Specific in-scope page to probe (optional; default: crawl) ",
+            },
+            "param": {
+                "type": "string",
+                "description": "Specific parameter to probe (requires url)",
+            },
+        },
+    ),
 ]
 
 
@@ -291,6 +309,62 @@ class ToolDispatcher:
             {"format": fmt_name, "files": files, "directory": str(self.config.report_output)}
         )
 
+    async def _tool_probe_ssrf(self, args: dict[str, Any]) -> str:
+        """Probe URL parameters for open redirect / blind SSRF."""
+        from aegisx.scanners.ssrf_scanner import (
+            _params_with_urls,
+            check_blind_ssrf,
+            check_open_redirect,
+        )
+
+        url = str(args.get("url") or self.config.target_url)
+        # The tool only requests in-scope pages; scope check is explicit.
+        self._assert_in_scope(url)
+        param = str(args.get("param") or "")
+
+        probes = [(url.split("?")[0], param)] if param else _params_with_urls(url)
+
+        if not probes:
+            return json.dumps(
+                {
+                    "probed": 0,
+                    "note": "No URL-taking parameters found on this page. "
+                    "Try another in-scope path, or call without arguments to "
+                    "probe the target root.",
+                },
+                ensure_ascii=False,
+            )
+
+        findings = []
+        for base, p in probes:
+            redirect = await check_open_redirect(self.config, base, p)
+            if redirect:
+                self.context.add_finding(redirect)
+                findings.append(redirect)
+            blind = await check_blind_ssrf(self.config, base, p)
+            if blind:
+                self.context.add_finding(blind)
+                findings.append(blind)
+
+        return json.dumps(
+            {
+                "probed": len(probes),
+                "parameters": [p for _, p in probes],
+                "new_findings": [
+                    {
+                        "id": f.id,
+                        "title": f.title,
+                        "severity": f.severity.value,
+                        "cwe": f.cwe_id,
+                        "evidence": (f.evidence[:200] if f.evidence else None),
+                    }
+                    for f in findings
+                ],
+                "total_findings_in_scan": len(self.context.findings),
+            },
+            ensure_ascii=False,
+        )
+
     async def _tool_compare_history(self, args: dict[str, Any]) -> str:
         """Diff two historical scans (default: two most recent for this target)."""
         from aegisx.utils.history import ScanHistory
@@ -350,6 +424,7 @@ class ToolDispatcher:
             "http_request": self._tool_http_request,
             "generate_report": self._tool_generate_report,
             "compare_history": self._tool_compare_history,
+            "probe_ssrf": self._tool_probe_ssrf,
         }
         handler = handlers.get(name)
         if handler is None:

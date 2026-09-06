@@ -13,7 +13,9 @@ from aegisx.ai.agent import AegisxAgent
 from aegisx.ai.evals import BUILTIN_SCENARIOS, MockProvider, ScriptedStep
 from aegisx.ai.provider import ChatResult, ToolCall
 from aegisx.ai.sessions import AgentSessionState, SessionStore
+from aegisx.ai.tools import ToolDispatcher
 from aegisx.core.config import AegisxConfig
+from aegisx.core.context import ScanContext
 
 
 def _config(**overrides) -> AegisxConfig:
@@ -205,7 +207,15 @@ class TestAgentCheckpoints:
 def _sse_body() -> str:
     """Build an SSE stream: content deltas, split tool call, usage, [DONE]."""
     chunks = [
-        {"choices": [{"index": 0, "delta": {"role": "assistant", "content": "Hel"}, "finish_reason": None}]},
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant", "content": "Hel"},
+                    "finish_reason": None,
+                }
+            ]
+        },
         {"choices": [{"index": 0, "delta": {"content": "lo world"}, "finish_reason": None}]},
         {
             "choices": [
@@ -401,6 +411,80 @@ class AIProviderForStream:
 
     async def chat_stream(self, messages, tools=None, on_delta=None):
         return await self._impl.chat_stream(messages, tools=tools, on_delta=on_delta)
+
+
+# ---------------------------------------------------------------------------
+# probe_ssrf tool
+# ---------------------------------------------------------------------------
+
+
+class TestProbeSSRFTool:
+    @pytest.mark.asyncio
+    async def test_out_of_scope_url_blocked(self):
+        config = _config()
+        context = ScanContext(config=config, target_url=config.target_url)
+        dispatcher = ToolDispatcher(config, context)
+        out = await dispatcher.execute("probe_ssrf", {"url": "https://evil.example.com/"})
+        data = json.loads(out)
+        assert data.get("blocked") is True
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_specific_param_probe(self):
+        respx.get(url__startswith="https://test.example.com/").mock(
+            return_value=httpx.Response(200, text="ok")
+        )
+        config = _config()
+        context = ScanContext(config=config, target_url=config.target_url)
+        dispatcher = ToolDispatcher(config, context)
+        out = await dispatcher.execute(
+            "probe_ssrf", {"url": "https://test.example.com/login", "param": "next"}
+        )
+        data = json.loads(out)
+        assert data["probed"] == 1
+        assert data["parameters"] == ["next"]
+        assert data["new_findings"] == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_finding_registered_in_context(self):
+        """Findings from probe_ssrf land in the scan context for reporting."""
+        respx.get(url__startswith="https://test.example.com/").mock(
+            side_effect=lambda req: (
+                httpx.Response(
+                    302,
+                    headers={
+                        "Location": "https://aegisx-probe.example.com/redirect-test"
+                    },
+                )
+                if "aegisx-probe" in str(req.url)
+                else httpx.Response(200, text="ok")
+            )
+        )
+        config = _config()
+        context = ScanContext(config=config, target_url=config.target_url)
+        dispatcher = ToolDispatcher(config, context)
+        out = await dispatcher.execute(
+            "probe_ssrf", {"url": "https://test.example.com/login", "param": "next"}
+        )
+        data = json.loads(out)
+        assert len(data["new_findings"]) == 1
+        assert data["new_findings"][0]["cwe"] == "CWE-601"
+        assert context.findings, "finding must be registered in scan context"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_no_params_found_graceful(self):
+        respx.get(url__startswith="https://test.example.com/").mock(
+            return_value=httpx.Response(404, text="not found")
+        )
+        config = _config()
+        context = ScanContext(config=config, target_url=config.target_url)
+        dispatcher = ToolDispatcher(config, context)
+        # 404 → crawl returns nothing, no params; tool must return JSON, not crash
+        out = await dispatcher.execute("probe_ssrf", {})
+        data = json.loads(out)
+        assert "probed" in data
 
 
 # ---------------------------------------------------------------------------

@@ -179,6 +179,7 @@ class TestToolSchemas:
             "http_request",
             "generate_report",
             "compare_history",
+            "probe_ssrf",
         } <= names
 
 
