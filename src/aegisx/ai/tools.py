@@ -130,6 +130,21 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     ),
+    _f(
+        "probe_auth",
+        "Mine an in-scope page for JWTs, session identifiers, and OAuth "
+        "authorization links, then analyze them: JWT alg=none, missing/long "
+        "expiry, sensitive claims; session tokens in URLs; OAuth requests "
+        "missing 'state'. Findings are registered automatically and decoded "
+        "token facts are returned so you can reason about them. Use on "
+        "login/auth/profile pages.",
+        {
+            "url": {
+                "type": "string",
+                "description": "Specific in-scope page to analyze (optional; default: target root)",
+            },
+        },
+    ),
 ]
 
 
@@ -365,6 +380,99 @@ class ToolDispatcher:
             ensure_ascii=False,
         )
 
+    async def _tool_probe_auth(self, args: dict[str, Any]) -> str:
+        """Mine a page for JWTs/sessions/OAuth and analyze them."""
+        from aegisx.scanners.auth_scanner import (
+            _JWT_PATTERN,
+            _extract_oauth_links,
+            analyze_jwt,
+            check_jwt,
+            check_oauth,
+            check_session_management,
+        )
+
+        url = str(args.get("url") or self.config.target_url)
+        self._assert_in_scope(url)  # explicit scope gate (blocked → error JSON)
+
+        findings: list = []
+        try:
+            from aegisx.utils.http_client import create_client
+
+            async with create_client(self.config) as client:
+                resp = await client.get(url)
+        except Exception as exc:  # noqa: BLE001 — surfaced to the LLM as JSON
+            return json.dumps({"error": f"fetch failed: {type(exc).__name__}: {exc}"})
+
+        # --- decoded token facts (for model reasoning) -------------------
+        token_facts: list[dict[str, Any]] = []
+        for token in list(dict.fromkeys(_JWT_PATTERN.findall(resp.text)))[:5]:
+            facts = analyze_jwt(token)
+            if facts is None:
+                continue
+            exp = facts["claims"].get("exp")
+            iat = facts["claims"].get("iat")
+            numeric = isinstance(exp, (int, float)) and isinstance(iat, (int, float))
+            lifetime = int(exp) - int(iat) if numeric else None
+            token_facts.append(
+                {
+                    "token_preview": token[:24] + "…",
+                    "alg": facts["alg"],
+                    "has_expiry": facts["expires"],
+                    "lifetime_seconds": lifetime,
+                    "sensitive_claims": [
+                        c for c in ("password", "password_hash", "ssn", "credit_card", "api_key")
+                        if c in facts["claims"]
+                    ],
+                    "claim_names": sorted(facts["claims"].keys()),
+                }
+            )
+
+        # --- full checks register findings in context --------------------
+        findings.extend(await check_jwt(self.config, [url]))
+        findings.extend(await check_session_management(self.config, [url]))
+        findings.extend(await check_oauth(self.config, [url]))
+        for f in findings:
+            self.context.add_finding(f)
+
+        # --- OAuth link facts -------------------------------------------
+        oauth_links = _extract_oauth_links(resp.text, self.config.target_url)[:5]
+        oauth_facts = []
+        for link in oauth_links:
+            from urllib.parse import parse_qs as _pqs
+            from urllib.parse import urlparse as _up
+
+            q = {k.lower(): v[0] for k, v in _pqs(_up(link).query).items()}
+            oauth_facts.append(
+                {
+                    "host": _up(link).netloc,
+                    "has_state": "state" in q,
+                    "response_type": q.get("response_type"),
+                    "redirect_uri": (q.get("redirect_uri") or "")[:100],
+                }
+            )
+
+        return json.dumps(
+            {
+                "url": url,
+                "jwt_tokens_found": len(token_facts),
+                "jwt_facts": token_facts,
+                "oauth_links_found": len(oauth_facts),
+                "oauth_facts": oauth_facts,
+                "new_findings": [
+                    {
+                        "id": f.id,
+                        "title": f.title,
+                        "severity": f.severity.value,
+                        "cwe": f.cwe_id,
+                        "evidence": (f.evidence[:200] if f.evidence else None),
+                    }
+                    for f in findings
+                ],
+                "total_findings_in_scan": len(self.context.findings),
+            },
+            ensure_ascii=False,
+        )
+
     async def _tool_compare_history(self, args: dict[str, Any]) -> str:
         """Diff two historical scans (default: two most recent for this target)."""
         from aegisx.utils.history import ScanHistory
@@ -425,6 +533,7 @@ class ToolDispatcher:
             "generate_report": self._tool_generate_report,
             "compare_history": self._tool_compare_history,
             "probe_ssrf": self._tool_probe_ssrf,
+            "probe_auth": self._tool_probe_auth,
         }
         handler = handlers.get(name)
         if handler is None:

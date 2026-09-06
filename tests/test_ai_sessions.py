@@ -3,6 +3,7 @@ truncation-nudge eval scenario."""
 
 from __future__ import annotations
 
+import base64
 import json
 
 import httpx
@@ -485,6 +486,92 @@ class TestProbeSSRFTool:
         out = await dispatcher.execute("probe_ssrf", {})
         data = json.loads(out)
         assert "probed" in data
+
+
+# ---------------------------------------------------------------------------
+# probe_auth tool
+# ---------------------------------------------------------------------------
+
+
+def _make_jwt(header: dict, payload: dict) -> str:
+    """Build an unsigned JWT-shaped string for tests."""
+    def enc(obj: dict) -> str:
+        return base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b"=").decode()
+
+    return f"{enc(header)}.{enc(payload)}.sig"
+
+
+class TestProbeAuthTool:
+    @pytest.mark.asyncio
+    async def test_out_of_scope_url_blocked(self):
+        config = _config()
+        context = ScanContext(config=config, target_url=config.target_url)
+        dispatcher = ToolDispatcher(config, context)
+        out = await dispatcher.execute("probe_auth", {"url": "https://evil.example.com/"})
+        data = json.loads(out)
+        assert data.get("blocked") is True
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_jwt_facts_and_registers_findings(self):
+        bad_jwt = _make_jwt(
+            {"alg": "none", "typ": "JWT"}, {"sub": "1", "role": "admin", "password": "x"}
+        )
+        respx.get(url__startswith="https://test.example.com/").mock(
+            return_value=httpx.Response(200, text=f"token={bad_jwt}")
+        )
+        config = _config()
+        context = ScanContext(config=config, target_url=config.target_url)
+        dispatcher = ToolDispatcher(config, context)
+        out = await dispatcher.execute("probe_auth", {"url": "https://test.example.com/login"})
+        data = json.loads(out)
+
+        # Decoded facts for model reasoning
+        assert data["jwt_tokens_found"] == 1
+        facts = data["jwt_facts"][0]
+        assert facts["alg"] == "none"
+        assert facts["has_expiry"] is False
+        assert "password" in facts["sensitive_claims"]
+
+        # Findings registered in scan context
+        cwes = {f["cwe"] for f in data["new_findings"]}
+        assert {"CWE-347", "CWE-613", "CWE-312"} <= cwes
+        assert context.findings, "findings must land in the scan context"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_oauth_facts_missing_state(self):
+        page = (
+            '<a href="https://auth.example.com/authorize'
+            '?client_id=abc&response_type=code&redirect_uri=https://test.example.com/cb">'
+            "Login</a>"
+        )
+        respx.get(url__startswith="https://test.example.com/").mock(
+            return_value=httpx.Response(200, text=page)
+        )
+        config = _config()
+        context = ScanContext(config=config, target_url=config.target_url)
+        dispatcher = ToolDispatcher(config, context)
+        out = await dispatcher.execute("probe_auth", {"url": "https://test.example.com/"})
+        data = json.loads(out)
+        assert data["oauth_links_found"] == 1
+        assert data["oauth_facts"][0]["has_state"] is False
+        assert any(f["cwe"] == "CWE-352" for f in data["new_findings"])
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_clean_page_returns_empty_facts(self):
+        respx.get(url__startswith="https://test.example.com/").mock(
+            return_value=httpx.Response(200, text="<html>plain page</html>")
+        )
+        config = _config()
+        context = ScanContext(config=config, target_url=config.target_url)
+        dispatcher = ToolDispatcher(config, context)
+        out = await dispatcher.execute("probe_auth", {})
+        data = json.loads(out)
+        assert data["jwt_tokens_found"] == 0
+        assert data["oauth_links_found"] == 0
+        assert data["new_findings"] == []
 
 
 # ---------------------------------------------------------------------------

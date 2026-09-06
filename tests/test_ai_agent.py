@@ -180,6 +180,7 @@ class TestToolSchemas:
             "generate_report",
             "compare_history",
             "probe_ssrf",
+            "probe_auth",
         } <= names
 
 

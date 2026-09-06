@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **AI agent auth probing** (`probe_auth` tool, 9 tools total): the Brain mines in-scope pages for JWTs, session identifiers, and OAuth links, receives decoded token facts (algorithm, expiry, sensitive claim names, OAuth `state`/`redirect_uri` presence) to reason about, and auto-registers findings (CWE-347/613/312/598/352/601); methodology prompt gains a dedicated AUTH step
+
 - **Auth scanner** (`auth_scanner`, enabled by default — 7 scanners total):
   - **JWT checks**: `alg: none` acceptance (CWE-347, critical), missing `exp` claim and excessively long lifetimes >24h (CWE-613), sensitive claims readable in the plaintext payload (CWE-312)
   - **Session management**: session identifiers exposed in URLs (CWE-598)

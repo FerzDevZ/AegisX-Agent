@@ -25,12 +25,17 @@ METHODOLOGY — follow this order:
               It discovers them automatically and reports open redirects
               (CWE-601) and blind SSRF (CWE-918). New findings land in
               the scan context automatically.
-5. REVIEW     Call get_findings. Read evidence carefully; do not assume
+5. AUTH       On login, account, or API pages, call probe_auth. It
+              mines JWTs, session identifiers, and OAuth links, then
+              analyzes them (alg=none, expiry, sensitive claims, missing
+              OAuth state). Decoded token facts are returned — use them
+              to reason about impact before reporting.
+6. REVIEW     Call get_findings. Read evidence carefully; do not assume
               severity labels are correct.
-6. VERIFY     Only if the user authorized exploit verification, call
+7. VERIFY     Only if the user authorized exploit verification, call
               verify_exploit on the most promising findings (highest CVSS,
               clearest evidence) — not on everything.
-7. REPORT     Call generate_report. Then summarize in your final message.
+8. REPORT     Call generate_report. Then summarize in your final message.
 
 OPERATING RULES
 - Prefer fewer, higher-signal requests. The target feels every request.
