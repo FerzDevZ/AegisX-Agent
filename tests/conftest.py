@@ -9,18 +9,27 @@ import pytest
 def _isolate_config_env(monkeypatch):
     """Keep tests hermetic: never load a developer's real ~/.aegisx/.env.
 
-    AegisxConfig falls back to the home-directory .env so the installed
-    CLI works anywhere; tests must not inherit those values.
+    AegisxConfig layers the home-directory .env under per-project .env so
+    the installed CLI works anywhere; tests must not inherit those values.
     """
+    from pydantic_settings import BaseSettings
+
     from aegisx.core import config as config_module
+
+    def _no_dotenv_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        return (init_settings, env_settings, file_secret_settings)
 
     monkeypatch.setattr(
         config_module.AegisxConfig,
-        "model_config",
-        {
-            **config_module.AegisxConfig.model_config,
-            "env_file": None,
-        },
+        "settings_customise_sources",
+        classmethod(_no_dotenv_sources),
     )
     yield
 
