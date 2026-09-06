@@ -7,7 +7,10 @@ The orchestrator calls scan() on each registered scanner and collects findings.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
+
+if TYPE_CHECKING:
+    import httpx
 
 from aegisx.core.context import Finding, ScanContext
 from aegisx.utils.logger import get_logger

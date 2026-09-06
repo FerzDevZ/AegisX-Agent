@@ -13,23 +13,23 @@ from __future__ import annotations
 
 import asyncio
 
-from aegisx.core.context import Finding, ScanContext
+from aegisx.core.context import Finding
 from aegisx.scanners.base_scanner import BaseScanner
+from aegisx.scanners.web.api_scanner import check_api_endpoints
+from aegisx.scanners.web.auth_scanner import check_auth_bypass
+from aegisx.scanners.web.cookie_scanner import check_cookie_security
 from aegisx.scanners.web.crawler import crawl_pages
 from aegisx.scanners.web.header_scanner import (
-    check_security_headers,
     check_cors,
-    check_info_disclosure,
     check_http_methods,
+    check_info_disclosure,
+    check_security_headers,
 )
-from aegisx.scanners.web.cookie_scanner import check_cookie_security
-from aegisx.scanners.web.auth_scanner import check_auth_bypass
 from aegisx.scanners.web.param_scanner import (
+    check_path_traversal,
     check_sqli,
     check_xss,
-    check_path_traversal,
 )
-from aegisx.scanners.web.api_scanner import check_api_endpoints
 from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
 

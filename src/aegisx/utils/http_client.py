@@ -7,8 +7,8 @@ Provides connection pooling, consistent timeout, rate limiting, and proxy suppor
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 import httpx
 

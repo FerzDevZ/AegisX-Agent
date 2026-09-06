@@ -13,15 +13,20 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    import httpx
+
+from datetime import UTC
+
 from aegisx.core.config import AegisxConfig, ReportFormat, ScanMode
 from aegisx.core.context import ScanContext, ScanStats
-from aegisx.plugins import get_plugin_manager, PluginManager
+from aegisx.plugins import get_plugin_manager
 from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger, setup_logging
 
 if TYPE_CHECKING:
-    from aegisx.scanners.base_scanner import BaseScanner
     from aegisx.exploits.base_exploit import BaseExploit
+    from aegisx.scanners.base_scanner import BaseScanner
 
 logger = get_logger("orchestrator")
 
@@ -61,32 +66,100 @@ class AegisxOrchestrator:
         # Load plugins
         self._load_plugins()
 
+        # Calculate total phases
+        total_phases = 1  # scan always runs
+        if self.config.scan_mode in (ScanMode.QUICK, ScanMode.FULL, ScanMode.STEALTH):
+            total_phases += 1  # recon
+        if self.config.scan_mode == ScanMode.FULL and self.config.exploit_verification:
+            total_phases += 1  # exploit
+        total_phases += 1  # report
+
+        current_phase = 0
+
         # Phase 1: Reconnaissance (only in quick/full/stealth modes)
         if self.config.scan_mode in (ScanMode.QUICK, ScanMode.FULL, ScanMode.STEALTH):
+            current_phase += 1
+            logger.info("[dim]Phase %d/%d: Reconnaissance[/]", current_phase, total_phases)
             await self._phase_recon()
 
         # Phase 2: Scanning & Exploitation
+        current_phase += 1
+        logger.info("[dim]Phase %d/%d: Scanning[/]", current_phase, total_phases)
         await self._phase_scan()
 
         # Exploit verification (only in full mode with explicit consent)
         if self.config.scan_mode == ScanMode.FULL and self.config.exploit_verification:
+            current_phase += 1
+            logger.info("[dim]Phase %d/%d: Exploit Verification[/]", current_phase, total_phases)
             await self._phase_exploit()
 
         # Phase 3: Reporting
+        current_phase += 1
+        logger.info("[dim]Phase %d/%d: Report Generation[/]", current_phase, total_phases)
         stats = await self._phase_report()
+
+        # Write audit log
+        self._write_audit_log(stats)
+
+        # Persist scan to local history database (best-effort)
+        try:
+            from pathlib import Path
+
+            from aegisx.utils.history import ScanHistory
+
+            history = ScanHistory(
+                db_path=Path(self.config.report_output) / "history.db"
+            )
+            history.record_scan(
+                scan_id=self.context.scan_id,
+                target=self.config.target_url,
+                mode=self.config.scan_mode.value,
+                stats=stats,
+                findings=[f.to_dict() for f in self.context.findings],
+            )
+        except Exception as exc:  # noqa: BLE001 — history is best-effort
+            logger.debug("Scan history not recorded: %s", exc)
 
         return stats
 
+    def _write_audit_log(self, stats: ScanStats) -> None:
+        """Write scan audit log for compliance and tracking."""
+        import json
+        from datetime import datetime
+        from pathlib import Path
+
+        audit_dir = Path(self.config.report_output) / ".audit"
+        audit_dir.mkdir(parents=True, exist_ok=True)
+
+        audit_entry = {
+            "scan_id": self.context.scan_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "target": self.config.target_url,
+            "mode": self.config.scan_mode.value,
+            "findings": stats.total_findings,
+            "critical": stats.critical_count,
+            "high": stats.high_count,
+            "medium": stats.medium_count,
+            "low": stats.low_count,
+            "info": stats.info_count,
+            "duration_seconds": stats.scan_duration_seconds,
+            "scanners": stats.scanners_used,
+        }
+
+        audit_file = audit_dir / f"audit-{self.context.scan_id}.json"
+        with open(audit_file, "w") as f:
+            json.dump(audit_entry, f, indent=2)
+
     def _register_builtins(self) -> None:
         """Register built-in scanner, exploit, and reporter plugins."""
-        from aegisx.scanners.web_scanner import WebScanner
-        from aegisx.scanners.secret_scanner import SecretScanner
+        from aegisx.reporters.json_reporter import JSONReporter
+        from aegisx.reporters.markdown_reporter import MarkdownReporter
+        from aegisx.reporters.sarif_reporter import SARIFReporter
         from aegisx.scanners.config_scanner import ConfigScanner
         from aegisx.scanners.dependency_scanner import DependencyScanner
         from aegisx.scanners.network_scanner import NetworkScanner
-        from aegisx.reporters.markdown_reporter import MarkdownReporter
-        from aegisx.reporters.json_reporter import JSONReporter
-        from aegisx.reporters.sarif_reporter import SARIFReporter
+        from aegisx.scanners.secret_scanner import SecretScanner
+        from aegisx.scanners.web_scanner import WebScanner
 
         for cls in [WebScanner, SecretScanner, ConfigScanner, DependencyScanner, NetworkScanner]:
             self.plugin_manager.register_scanner(cls.name, cls)
@@ -94,10 +167,10 @@ class AegisxOrchestrator:
             self.plugin_manager.register_reporter(cls.format_name, cls)
 
         # Register exploit modules
-        from aegisx.exploits.sqli_exploit import SQLiExploit
-        from aegisx.exploits.xss_exploit import XSSExploit
         from aegisx.exploits.csrf_exploit import CSRFExploit
+        from aegisx.exploits.sqli_exploit import SQLiExploit
         from aegisx.exploits.ssrf_exploit import SSRFExploit
+        from aegisx.exploits.xss_exploit import XSSExploit
 
         for cls in [SQLiExploit, XSSExploit, CSRFExploit, SSRFExploit]:
             self.plugin_manager.register_exploit(cls.name, cls)
@@ -183,7 +256,7 @@ class AegisxOrchestrator:
                     asyncio.gather(*scan_tasks, return_exceptions=True),
                     timeout=phase_timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("[yellow]SCAN[/] Phase 2 timed out after %ds", phase_timeout)
                 results = []
             total_findings = sum(
@@ -228,10 +301,10 @@ class AegisxOrchestrator:
 
         stats = self.context.finish()
 
-        from aegisx.reporters.markdown_reporter import MarkdownReporter
-        from aegisx.reporters.json_reporter import JSONReporter
-        from aegisx.reporters.sarif_reporter import SARIFReporter
         from aegisx.reporters.html_reporter import HTMLReporter
+        from aegisx.reporters.json_reporter import JSONReporter
+        from aegisx.reporters.markdown_reporter import MarkdownReporter
+        from aegisx.reporters.sarif_reporter import SARIFReporter
 
         reporter_map = {
             ReportFormat.MARKDOWN: MarkdownReporter,
@@ -258,7 +331,7 @@ class AegisxOrchestrator:
 
         return stats
 
-    def _detect_technologies(self, response: "httpx.Response") -> list[str]:
+    def _detect_technologies(self, response: httpx.Response) -> list[str]:
         """Detect technologies from HTTP response headers."""
         technologies = []
         server = response.headers.get("server", "").lower()
@@ -280,7 +353,7 @@ class AegisxOrchestrator:
 
         return technologies
 
-    def _check_security_headers(self, response: "httpx.Response") -> dict[str, bool]:
+    def _check_security_headers(self, response: httpx.Response) -> dict[str, bool]:
         """Check for recommended security headers."""
         recommended = {
             "strict-transport-security": False,
@@ -300,8 +373,8 @@ class AegisxOrchestrator:
 
     def _print_summary(self, stats: ScanStats) -> None:
         """Print a colorful scan summary to the terminal."""
-        from rich.table import Table
         from rich.console import Console
+        from rich.table import Table
 
         console = Console()
         table = Table(title="🛡️ Aegisx-Agent Scan Summary", show_header=True)

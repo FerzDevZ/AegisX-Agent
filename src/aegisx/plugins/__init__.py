@@ -15,9 +15,9 @@ from typing import TYPE_CHECKING
 from aegisx.utils.logger import get_logger
 
 if TYPE_CHECKING:
-    from aegisx.scanners.base_scanner import BaseScanner
     from aegisx.exploits.base_exploit import BaseExploit
     from aegisx.reporters.base_reporter import BaseReporter
+    from aegisx.scanners.base_scanner import BaseScanner
 
 logger = get_logger("plugins")
 

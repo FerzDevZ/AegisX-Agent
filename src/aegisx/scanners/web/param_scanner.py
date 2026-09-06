@@ -7,7 +7,7 @@ and Path Traversal vulnerabilities.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlparse, parse_qs, urlencode, urljoin
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 import httpx
 

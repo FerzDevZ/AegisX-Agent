@@ -3,10 +3,26 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 
-from aegisx.core.context import ScanContext
 from aegisx.reporters.base_reporter import BaseReporter
+
+
+def _json_for_script_tag(data: str) -> str:
+    """Make a JSON string safe to embed inside a <script> block.
+
+    Prevents XSS when finding data contains ``</script>`` or HTML markup:
+    - ``<`` → ``\\u003c`` (still parsed identically by ``JSON.parse``)
+    - ``>`` → ``\\u003e``
+    - ``&`` → ``\\u0026`` (avoids HTML entity double-decoding)
+    - U+2028/U+2029 → escaped (valid JSON line separators)
+    """
+    return (
+        data.replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
 
 
 class HTMLReporter(BaseReporter):
@@ -16,6 +32,7 @@ class HTMLReporter(BaseReporter):
     file_extension = ".html"
 
     def generate(self) -> str:
+        """Render findings and scan statistics into a self-contained HTML report."""
         ctx = self.context
         stats = ctx.get_stats()
         findings = sorted(ctx.findings, key=lambda f: f.severity_order, reverse=True)
@@ -66,8 +83,8 @@ class HTMLReporter(BaseReporter):
             low=stats.low_count,
             info=stats.info_count,
             scanners=", ".join(stats.scanners_used) or "None",
-            findings_json=findings_json,
-            exploit_json=exploit_json,
+            findings_json=_json_for_script_tag(findings_json),
+            exploit_json=_json_for_script_tag(exploit_json),
             version="0.1.0",
         )
 

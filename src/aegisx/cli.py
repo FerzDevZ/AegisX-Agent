@@ -12,19 +12,17 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 
 from aegisx import __version__
 from aegisx.core.config import AegisxConfig, ReportFormat, ScanMode
 from aegisx.core.orchestrator import AegisxOrchestrator
 from aegisx.plugins import get_plugin_manager
-from aegisx.utils.logger import setup_logging
 
 app = typer.Typer(
     name="aegisx",
@@ -53,7 +51,7 @@ def scan(
         "--output", "-o",
         help="Report output directory",
     ),
-    scope: Optional[str] = typer.Option(
+    scope: str | None = typer.Option(
         None,
         "--scope", "-s",
         help="Comma-separated domain whitelist (default: target domain only)",
@@ -66,16 +64,21 @@ def scan(
         help="Enable exploit verification (requires consent)",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
-    auth_token: Optional[str] = typer.Option(None, "--auth", help="Auth token for target"),
+    auth_token: str | None = typer.Option(None, "--auth", help="Auth token for target"),
     user_agent: str = typer.Option(
         "AegisxAgent/0.1.1 (Security Scanner)",
         "--user-agent", "-ua",
         help="Custom User-Agent string",
     ),
-    proxy: Optional[str] = typer.Option(
+    proxy: str | None = typer.Option(
         None,
         "--proxy", "-p",
         help="Proxy URL for requests (e.g. http://127.0.0.1:8080 for Burp/ZAP)",
+    ),
+    siem: Path | None = typer.Option(
+        None,
+        "--siem",
+        help="Export SIEM events (JSON-lines) to this file after the scan",
     ),
 ) -> None:
     """Scan a target for vulnerabilities."""
@@ -112,6 +115,13 @@ def scan(
     # Run orchestrator
     orchestrator = AegisxOrchestrator(config)
     stats = asyncio.run(orchestrator.run())
+
+    # Optional SIEM export (one event per finding, JSON-lines)
+    if siem:
+        from aegisx.utils.siem_export import export_siem
+
+        out = export_siem(orchestrator.context, siem, fmt="jsonl")
+        console.print(f"[green]✓[/] SIEM events exported to [cyan]{out}[/]")
 
     # Exit with code based on findings
     if stats.critical_count > 0:
@@ -203,17 +213,70 @@ def recon(
     asyncio.run(orchestrator.run())
 
 
+@app.command("history")
+def history(
+    target: str = typer.Option(None, "--target", "-t", help="Filter by target URL"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max entries to show"),
+    export_json: Path = typer.Option(None, "--export", help="Export full history to a JSON file"),
+) -> None:
+    """Show scan history recorded by previous runs."""
+    from rich.table import Table as RichTable
+
+    from aegisx.utils.history import ScanHistory
+
+    db = ScanHistory()
+
+    if export_json:
+        out = db.export_json(export_json)
+        console.print(f"[green]✓[/] History exported to [cyan]{out}[/]")
+        return
+
+    scans = db.get_scans(target=target, limit=limit)
+    if not scans:
+        console.print("[yellow]No scan history found.[/] Run `aegisx scan <target>` first.")
+        return
+
+    summary = db.stats_summary()
+    console.print(
+        f"[bold]History:[/] {summary['total_scans']} scans, "
+        f"{summary['unique_targets']} targets, "
+        f"{summary['total_critical']} critical findings total\n"
+    )
+
+    table = RichTable(title="📜 Scan History", border_style="blue")
+    table.add_column("Scan ID", style="cyan")
+    table.add_column("Timestamp")
+    table.add_column("Target")
+    table.add_column("Mode")
+    table.add_column("🔴", justify="right")
+    table.add_column("🟠", justify="right")
+    table.add_column("🟡", justify="right")
+    table.add_column("Total", justify="right")
+
+    for s in scans:
+        table.add_row(
+            s["scan_id"],
+            s["timestamp"][:19].replace("T", " "),
+            s["target"][:40],
+            s["mode"],
+            str(s["critical"]),
+            str(s["high"]),
+            str(s["medium"]),
+            str(s["findings"]),
+        )
+    console.print(table)
+
+
 @app.command("plugins")
 def list_plugins() -> None:
     """List all available scanner, exploit, and reporter plugins."""
     pm = get_plugin_manager()
     pm.load_entry_points()
-
     # Register built-in scanners
-    from aegisx.scanners.web_scanner import WebScanner
-    from aegisx.scanners.secret_scanner import SecretScanner
     from aegisx.scanners.config_scanner import ConfigScanner
     from aegisx.scanners.dependency_scanner import DependencyScanner
+    from aegisx.scanners.secret_scanner import SecretScanner
+    from aegisx.scanners.web_scanner import WebScanner
 
     pm.register_scanner(WebScanner.name, WebScanner)
     pm.register_scanner(SecretScanner.name, SecretScanner)
@@ -221,10 +284,10 @@ def list_plugins() -> None:
     pm.register_scanner(DependencyScanner.name, DependencyScanner)
 
     # Register built-in reporters
-    from aegisx.reporters.markdown_reporter import MarkdownReporter
-    from aegisx.reporters.json_reporter import JSONReporter
-    from aegisx.reporters.sarif_reporter import SARIFReporter
     from aegisx.reporters.html_reporter import HTMLReporter
+    from aegisx.reporters.json_reporter import JSONReporter
+    from aegisx.reporters.markdown_reporter import MarkdownReporter
+    from aegisx.reporters.sarif_reporter import SARIFReporter
 
     for cls in [MarkdownReporter, JSONReporter, SARIFReporter, HTMLReporter]:
         pm.register_reporter(cls.format_name, cls)
@@ -255,7 +318,6 @@ def list_plugins() -> None:
 @app.command()
 def info() -> None:
     """Show Aegisx-Agent version and system information."""
-    from aegisx.core.config import AegisxConfig
 
     panel_content = Text()
     panel_content.append(f"Aegisx-Agent v{__version__}\n", style="bold green")

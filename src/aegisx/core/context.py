@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from aegisx.core.config import AegisxConfig, Severity
@@ -38,7 +38,7 @@ class Finding:
     scanner_name: str = ""
     raw_data: dict[str, Any] = field(default_factory=dict)
     timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
     @property
@@ -68,7 +68,7 @@ class ExploitResult:
     severity_after: Severity = Severity.INFO
     remediation: str = ""
     timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
 
@@ -99,7 +99,7 @@ class ScanContext:
     scan_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     target_url: str = ""
     started_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
     finished_at: str = ""
 
@@ -146,7 +146,7 @@ class ScanContext:
 
     def finish(self) -> ScanStats:
         """Mark scan as finished and return stats."""
-        self.finished_at = datetime.now(timezone.utc).isoformat()
+        self.finished_at = datetime.now(UTC).isoformat()
         return self.get_stats()
 
     def to_dict(self) -> dict[str, Any]:

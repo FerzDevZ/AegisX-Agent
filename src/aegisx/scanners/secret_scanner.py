@@ -14,7 +14,7 @@ from urllib.parse import urljoin
 
 import httpx
 
-from aegisx.core.context import Finding, ScanContext, Severity
+from aegisx.core.context import Finding, Severity
 from aegisx.scanners.base_scanner import BaseScanner
 from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger
@@ -116,6 +116,7 @@ class SecretScanner(BaseScanner):
                 sem = asyncio.Semaphore(10)
 
                 async def _check_path(path: str) -> list[Finding]:
+                    """Fetch a single well-known path and scan it for secrets."""
                     async with sem:
                         try:
                             url = urljoin(self.config.target_url, path)
@@ -159,6 +160,7 @@ class SecretScanner(BaseScanner):
         sem = asyncio.Semaphore(5)
 
         async def _scan_one(url: str) -> list[Finding]:
+            """Fetch one JS file and scan its body for embedded secrets."""
             async with sem:
                 try:
                     resp = await client.get(

@@ -6,9 +6,9 @@ Generates SARIF v2.1.0 compatible output for GitHub Code Scanning integration.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from aegisx.core.context import ScanContext
+from aegisx.core.context import Finding
 from aegisx.reporters.base_reporter import BaseReporter
 
 
@@ -19,6 +19,7 @@ class SARIFReporter(BaseReporter):
     file_extension = ".sarif"
 
     def generate(self) -> str:
+        """Convert findings to SARIF v2.1.0 rules and results for CI integration."""
         ctx = self.context
         findings = sorted(ctx.findings, key=lambda f: f.severity_order, reverse=True)
 
@@ -50,7 +51,7 @@ class SARIFReporter(BaseReporter):
                             "executionSuccessful": True,
                             "startTimeUtc": ctx.started_at,
                             "endTimeUtc": ctx.finished_at
-                            or datetime.now(timezone.utc).isoformat(),
+                            or datetime.now(UTC).isoformat(),
                         }
                     ],
                 }
@@ -59,7 +60,7 @@ class SARIFReporter(BaseReporter):
 
         return json.dumps(sarif, indent=2, ensure_ascii=False, default=str)
 
-    def _finding_to_sarif_result(self, finding: "Finding") -> dict:
+    def _finding_to_sarif_result(self, finding: Finding) -> dict:
         """Convert a Finding to SARIF result format."""
         level_map = {
             "critical": "error",
@@ -105,7 +106,7 @@ class SARIFReporter(BaseReporter):
 
         return result
 
-    def _finding_to_sarif_rule(self, finding: "Finding") -> dict:
+    def _finding_to_sarif_rule(self, finding: Finding) -> dict:
         """Convert a Finding to SARIF rule definition."""
         return {
             "id": finding.cwe_id or f"AEGISX-{finding.id}",

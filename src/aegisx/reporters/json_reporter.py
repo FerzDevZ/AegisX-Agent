@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 
-from aegisx.core.context import ScanContext
 from aegisx.reporters.base_reporter import BaseReporter
 
 
@@ -15,5 +14,6 @@ class JSONReporter(BaseReporter):
     file_extension = ".json"
 
     def generate(self) -> str:
+        """Serialize the full scan context (stats + findings) as pretty-printed JSON."""
         data = self.context.to_dict()
         return json.dumps(data, indent=2, ensure_ascii=False, default=str)

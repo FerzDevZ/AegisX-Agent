@@ -5,6 +5,47 @@ All notable changes to Aegisx-Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **SQLite scan history**: Every scan recorded automatically; `aegisx history` CLI command with `--target`, `--limit`, `--export` options; scan-to-scan diffing via `compare_scans()`
+- **SIEM export**: `--siem events.jsonl` flag on `scan` — flat event-per-finding JSON-lines for Splunk HEC / Elastic / Sentinel ingestion
+- **Plugin development guide**: `docs/PLUGIN_DEVELOPMENT.md` with full scanner/exploit/reporter authoring walkthrough
+- **CONTRIBUTING.md**: Development setup, dual-gate quality standards, commit conventions, PR process
+- **Reporter tests**: 16 unit tests covering Markdown, JSON, SARIF, and HTML reporters
+- **Pentest flow integration tests**: End-to-end pipeline tests (recon → scan → exploit → report) with mocked target
+- **Scan history tests**: 12 tests for SQLite storage, filtering, diffing, and export
+- **SIEM export tests**: 8 tests for event shape, severity normalization, and output formats
+- **Docstrings**: Filled missing docstrings in secret scanner inner functions and all reporter `generate()` methods
+- **`py.typed` marker**: Package now advertises inline type hints
+- **`__all__` exports** in `scanners/__init__.py`
+
+### Fixed
+- **XSS in HTML report** (CVE-worthy): Finding data was embedded unescaped inside `<script>` JSON blocks — a malicious finding title like `<script>alert(1)</script>` could execute in the report viewer. Now escaped via `\u003c`/`\u003e`/`\u0026` JSON unicode escapes
+- **SSL certificate date parsing**: `strptime` produced naive datetime causing `TypeError` when compared to aware `datetime.now(timezone.utc)` — certificate expiry checks now attach UTC tzinfo
+- **Deprecated `datetime.utcnow()`** removed
+- **Invalid ruff rule selector `SEC`** in pyproject.toml (renamed to `S` — flake8-bandit)
+- **11 F821 undefined-name errors** (missing TYPE_CHECKING imports for `httpx`, `ScanStats`, `Finding`)
+- **24 unused imports** removed (F401)
+- **Duplicate exception handler** in DNS check (B025)
+
+### Changed
+- Test suite grew from 170 to **212 tests** (+42), all passing
+- Lint clean: 0 errors on F/E/I/B025 rule families
+
+## [0.1.2] - 2026-09-05
+
+### Added
+- **Shared HTTP client factory** (`utils/http_client.py`): eliminates 20+ duplicated `httpx.AsyncClient` setups across scanners/exploits; central proxy, rate-limit, timeout, and response-size configuration
+- **Parallel secret scanning**: path checks use `asyncio.Semaphore(10)`, JS file scans `Semaphore(5)` — ~5x faster
+- **Audit log**: Every scan writes a JSON audit entry under `reports/.audit/`
+- **SSRF payload warning**: Explicit user consent warning when SSRF exploit targets cloud metadata endpoints
+- **Progress bar**: Rich-based phase progress in the CLI
+- **`--siem` groundwork**, `ScanHistory` planning
+
+### Fixed
+- Pre-existing test failures in `test_context.py` (finding ID length, set ordering)
+
 ## [0.1.1] - 2026-09-03
 
 ### Added

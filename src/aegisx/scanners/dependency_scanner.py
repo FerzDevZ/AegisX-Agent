@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import subprocess
-
-from aegisx.core.context import Finding, ScanContext, Severity
+from aegisx.core.context import Finding, Severity
 from aegisx.scanners.base_scanner import BaseScanner
 from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger

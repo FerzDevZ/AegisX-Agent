@@ -13,7 +13,7 @@ from urllib.parse import urljoin
 
 import httpx
 
-from aegisx.core.context import Finding, ScanContext, Severity
+from aegisx.core.context import Finding, Severity
 from aegisx.scanners.base_scanner import BaseScanner
 from aegisx.utils.http_client import create_client
 from aegisx.utils.logger import get_logger

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from aegisx.core.config import AegisxConfig, ReportFormat, ScanMode, Severity
-from aegisx.core.context import ExploitResult, Finding, ScanContext
+from aegisx.core.context import Finding, ScanContext
 
 
 @pytest.fixture

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aegisx-agent"
-version = "0.1.1"
+version = "0.1.2"
 description = "Autonomous AI-powered cybersecurity penetration testing agent"
 readme = "README.md"
 license = "MIT"
@@ -57,7 +57,7 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "A", "SIM", "SEC"]
+select = ["E", "F", "I", "N", "UP", "B", "A", "SIM", "S"]
 
 [tool.mypy]
 python_version = "3.12"

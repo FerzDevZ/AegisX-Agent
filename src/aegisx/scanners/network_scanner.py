@@ -180,7 +180,7 @@ class NetworkScanner(BaseScanner):
                         await asyncio.wait_for(writer.drain(), timeout=1.0)
                         data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
                         banner = data.decode("utf-8", errors="ignore").strip()
-                    except (asyncio.TimeoutError, ConnectionResetError, OSError):
+                    except (TimeoutError, ConnectionResetError, OSError):
                         pass
 
                     writer.close()
@@ -194,7 +194,7 @@ class NetworkScanner(BaseScanner):
                         banner=banner[:200],
                         response_time_ms=elapsed,
                     )
-                except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
+                except (TimeoutError, ConnectionRefusedError, OSError):
                     return None
 
         # Run all port scans concurrently
@@ -335,7 +335,7 @@ class NetworkScanner(BaseScanner):
                             result["cipher"] = cipher
                             result["tls_version"] = version
                             result["success"] = True
-                except (ssl.SSLError, socket.error, OSError) as e:
+                except (ssl.SSLError, OSError) as e:
                     result["error"] = type(e).__name__
                     result["success"] = False
                 return result
@@ -431,7 +431,7 @@ class NetworkScanner(BaseScanner):
                         ))
                         break
 
-        except (ssl.SSLError, socket.error, OSError) as e:
+        except (ssl.SSLError, OSError) as e:
             logger.debug("SSL/TLS check failed: %s", type(e).__name__)
 
         return findings
@@ -447,8 +447,11 @@ class NetworkScanner(BaseScanner):
         if not_after:
             try:
                 # Parse the date (format: "Mon DD HH:MM:SS YYYY GMT")
-                expire_date = datetime.datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
-                now = datetime.datetime.utcnow()
+
+                expire_date = datetime.datetime.strptime(
+                    not_after, "%b %d %H:%M:%S %Y %Z"
+                ).replace(tzinfo=datetime.UTC)
+                now = datetime.datetime.now(datetime.UTC)
                 days_left = (expire_date - now).days
 
                 if days_left < 0:
@@ -566,10 +569,8 @@ class NetworkScanner(BaseScanner):
                             remediation="Verify DNS configuration is correct.",
                         ))
 
-        except FileNotFoundError:
-            # dig not available, skip
-            pass
         except (FileNotFoundError, subprocess.SubprocessError, OSError) as e:
+            # dig not available or DNS lookup failed — skip quietly
             logger.debug("DNS check failed: %s", type(e).__name__)
 
         return findings

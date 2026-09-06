@@ -1,10 +1,11 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/🛡️-Aegisx--Agent-v0.1.0-brightgreen" alt="Version">
+  <img src="https://img.shields.io/badge/🛡️-Aegisx--Agent-v0.1.2-brightgreen" alt="Version">
   <img src="https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
   <img src="https://img.shields.io/badge/OWASP-Top%2010-red" alt="OWASP">
   <img src="https://img.shields.io/badge/CVSS-v3.1-orange" alt="CVSS">
-  <img src="https://img.shields.io/badge/Status-Alpha-purple" alt="Status">
+  <img src="https://img.shields.io/badge/tests-206%20passing-brightgreen?logo=pytest&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/CI-GitHub%20Actions-blue?logo=githubactions&logoColor=white" alt="CI">
 </p>
 
 <h1 align="center">🛡️ Aegisx-Agent</h1>
@@ -88,6 +89,9 @@ aegisx scan https://example.com --mode full --report all
 # Scan with authentication
 aegisx scan https://example.com --auth "your-jwt-token"
 
+# Route through Burp Suite / ZAP for deep inspection
+aegisx scan https://example.com --proxy http://127.0.0.1:8080
+
 # Verbose output with JSON report
 aegisx scan https://example.com -v --report json -o ./reports/
 ```
@@ -104,6 +108,32 @@ aegisx pentest https://example.com
 aegisx recon https://example.com
 ```
 
+### Scan History & Trend Analysis
+
+Every scan is recorded in a local SQLite database, so you can track
+results over time and verify fixes:
+
+```bash
+# Show recent scans
+aegisx history
+
+# Filter by target
+aegisx history --target https://example.com
+
+# Export full history to JSON
+aegisx history --export history.json
+```
+
+### SIEM Integration (Splunk / Elastic / Sentinel)
+
+Export findings as flat, event-per-finding JSON-lines ready for SIEM
+ingestion (Splunk HEC, Filebeat, Sentinel):
+
+```bash
+# Export SIEM events after a scan
+aegisx scan https://example.com --siem events.jsonl
+```
+
 ---
 
 ## 📖 CLI Reference
@@ -115,6 +145,7 @@ Commands:
   scan       Scan a target for vulnerabilities
   pentest    Full penetration test with exploit verification
   recon      Passive reconnaissance — gather target info
+  history    Show scan history recorded by previous runs
   plugins    List all available scanner/exploit/reporter plugins
   info       Show version and system information
 ```
@@ -126,6 +157,9 @@ Commands:
 | `--mode` | `-m` | Scan mode: `passive`, `quick`, `full`, `stealth` | `quick` |
 | `--report` | `-r` | Report format: `markdown`, `json`, `sarif`, `html`, `all` | `markdown` |
 | `--output` | `-o` | Report output directory | `reports/` |
+| `--proxy` | `-p` | Route requests through a proxy (Burp/ZAP) | none |
+| `--scope` | `-s` | Comma-separated domain whitelist | target domain |
+| `--siem` | — | Export SIEM JSON-lines events to a file | none |
 | `--scope` | `-s` | Comma-separated domain whitelist | target domain |
 | `--depth` | `-d` | Max crawl depth (1-10) | `3` |
 | `--rps` | | Max requests per second | `10.0` |
@@ -460,19 +494,22 @@ Aegisx-Agent includes:
 - [x] Configuration audit scanner
 - [x] Dependency scanner
 - [x] CVSS v3.1 scoring engine
-- [x] Markdown/JSON/SARIF reporters
+- [x] Markdown/JSON/SARIF/HTML reporters
 - [x] Plugin architecture
 - [x] CLI with Typer + Rich
 - [x] Docker support
-- [ ] **Exploit verification modules** (SQLi, XSS payload testing)
-- [ ] **Network scanner** (port scanning, service enumeration)
-- [ ] **HTML reporter** (interactive dashboard)
-- [ ] **SSRF scanner** (server-side request forgery)
+- [x] **Exploit verification modules** (SQLi, XSS, CSRF, SSRF)
+- [x] **Network scanner** (port scanning, service enumeration)
+- [x] **HTML reporter** (interactive dashboard with dark mode)
+- [x] **Scan history** (SQLite, scan-to-scan diffing)
+- [x] **SIEM export** (JSON-lines for Splunk/Elastic/Sentinel)
+- [x] **Proxy support** (route through Burp/ZAP)
+- [x] **Rate limiting & scope enforcement** (safe scanning)
+- [x] **GitHub Actions CI/CD** (lint + typecheck + tests)
+- [ ] **SSRF scanner** (server-side request forgery detection)
 - [ ] **Auth scanner** (JWT, session, OAuth testing)
-- [ ] **API scanner** (IDOR, mass assignment, rate limiting)
 - [ ] **Continuous monitoring mode** (scheduled scans)
 - [ ] **Slack/Discord notifications** (alert on findings)
-- [ ] **GitHub Actions integration** (CI/CD security gates)
 - [ ] **Web dashboard** (scan history, trend analysis)
 
 ---

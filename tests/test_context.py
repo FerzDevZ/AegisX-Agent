@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
 
 from aegisx.core.config import AegisxConfig, Severity
 from aegisx.core.context import (
     ExploitResult,
     Finding,
     ScanContext,
-    ScanStats,
 )
 
 

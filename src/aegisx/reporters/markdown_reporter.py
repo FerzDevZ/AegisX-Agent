@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from aegisx.core.config import Severity
-from aegisx.core.context import ScanContext
+from aegisx.core.context import Finding, ScanContext, ScanStats
 from aegisx.reporters.base_reporter import BaseReporter
 
 
@@ -44,7 +44,7 @@ class MarkdownReporter(BaseReporter):
             f"| **Finished** | {ctx.finished_at or 'In Progress'} |"
         )
 
-    def _executive_summary(self, stats: "ScanStats") -> str:
+    def _executive_summary(self, stats: ScanStats) -> str:
         total = stats.total_findings
         if total == 0:
             return "## Executive Summary\n\n✅ **No vulnerabilities found.** The target appears secure against the scanned attack vectors."
@@ -58,7 +58,7 @@ class MarkdownReporter(BaseReporter):
             f"The scan completed in **{stats.scan_duration_seconds:.1f}** seconds."
         )
 
-    def _severity_table(self, stats: "ScanStats") -> str:
+    def _severity_table(self, stats: ScanStats) -> str:
         return (
             "## Findings Overview\n\n"
             "| Severity | Count | Action Required |\n"
@@ -70,7 +70,7 @@ class MarkdownReporter(BaseReporter):
             f"| ⚪ Info | {stats.info_count} | Awareness only |"
         )
 
-    def _findings_by_severity(self, findings: list["Finding"], severity: Severity) -> str:
+    def _findings_by_severity(self, findings: list[Finding], severity: Severity) -> str:
         filtered = [f for f in findings if f.severity == severity]
         if not filtered:
             return ""
@@ -89,8 +89,8 @@ class MarkdownReporter(BaseReporter):
 
         for f in filtered:
             lines.append(f"### {f.id}: {f.title}\n")
-            lines.append(f"| Field | Value |")
-            lines.append(f"|-------|-------|")
+            lines.append("| Field | Value |")
+            lines.append("|-------|-------|")
             lines.append(f"| **Severity** | {f.severity.value.upper()} |")
             lines.append(f"| **CVSS** | {f.cvss_score} |")
             if f.cwe_id:
