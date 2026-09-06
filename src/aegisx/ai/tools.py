@@ -112,6 +112,11 @@ class ToolDispatcher:
         self.config = config
         self.context = context
         self.total_requests = 0
+        # Duplicate-call damping: weak models tend to repeat identical
+        # tool calls; cached/hinted responses keep the loop converging.
+        self._call_counts: dict[str, int] = {}
+        self._results: dict[str, str] = {}
+        self.last_call_was_duplicate = False
         # One shared orchestrator instance avoids re-registering built-in
         # plugins (and the associated warnings) on every tool call.
         from aegisx.core.orchestrator import AegisxOrchestrator
@@ -278,7 +283,12 @@ class ToolDispatcher:
     # --- dispatch ----------------------------------------------------------
 
     async def execute(self, name: str, args: dict[str, Any]) -> str:
-        """Dispatch one tool call by name. Errors become JSON strings."""
+        """Dispatch one tool call by name. Errors become JSON strings.
+
+        Identical repeat calls are damped: the 2nd returns the cached
+        result plus a hint, the 3rd+ returns only a hint. This stops
+        weak models from burning their iteration budget in loops.
+        """
         handlers = {
             "run_recon": self._tool_recon,
             "run_scanner": self._tool_scan,
@@ -290,8 +300,29 @@ class ToolDispatcher:
         handler = handlers.get(name)
         if handler is None:
             return json.dumps({"error": f"Unknown tool: {name}"})
+
+        key = f"{name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
+        self._call_counts[key] = self._call_counts.get(key, 0) + 1
+        count = self._call_counts[key]
+        self.last_call_was_duplicate = count > 1
+
+        if count == 2 and key in self._results:
+            return (
+                self._results[key]
+                + "\n\n[NOTE: identical repeat call — result unchanged. "
+                "Do not call this tool again with the same arguments.]"
+            )
+        if count > 2 and key in self._results:
+            return json.dumps(
+                {
+                    "hint": "Duplicate call blocked. You already have this "
+                    "result. Pick a different action or produce your final "
+                    "summary now.",
+                }
+            )
+
         try:
-            return await handler(args)
+            output = await handler(args)
         except PermissionError as exc:
             logger.warning("[bold red]SCOPE[/] %s", exc)
             return json.dumps({"error": str(exc), "blocked": True})
@@ -300,3 +331,6 @@ class ToolDispatcher:
         except Exception as exc:  # noqa: BLE001 — tool errors go back to the LLM
             logger.debug("Tool %s failed: %s", name, exc)
             return json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+
+        self._results[key] = output
+        return output

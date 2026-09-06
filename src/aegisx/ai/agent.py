@@ -120,6 +120,22 @@ class AegisxAgent:
                         }
                     )
 
+                # Track progress: any fresh (non-duplicate) call = progress
+                if self.dispatcher.last_call_was_duplicate and not getattr(
+                    self, "_dup_warned", False
+                ):
+                    self._dup_warned = True
+                    self.messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "You are repeating tool calls you already made. "
+                                "All data is already in your context. Call a NEW "
+                                "tool or produce your final summary now."
+                            ),
+                        }
+                    )
+
             result.stopped_reason = "budget"
             result.final_message = await self._force_summary()
             return result
