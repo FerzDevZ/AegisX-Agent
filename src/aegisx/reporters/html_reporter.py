@@ -37,38 +37,44 @@ class HTMLReporter(BaseReporter):
         stats = ctx.get_stats()
         findings = sorted(ctx.findings, key=lambda f: f.severity_order, reverse=True)
 
-        findings_json = json.dumps([
-            {
-                "id": f.id,
-                "title": f.title,
-                "severity": f.severity.value,
-                "cvss": f.cvss_score,
-                "cwe": f.cwe_id,
-                "owasp": f.owasp_category,
-                "url": f.url,
-                "endpoint": f.endpoint,
-                "method": f.method,
-                "parameter": f.parameter,
-                "description": f.description,
-                "evidence": f.evidence,
-                "payload": f.payload,
-                "remediation": f.remediation,
-                "references": f.references,
-                "scanner": f.scanner_name,
-            }
-            for f in findings
-        ], ensure_ascii=False)
+        findings_json = json.dumps(
+            [
+                {
+                    "id": f.id,
+                    "title": f.title,
+                    "severity": f.severity.value,
+                    "cvss": f.cvss_score,
+                    "cwe": f.cwe_id,
+                    "owasp": f.owasp_category,
+                    "url": f.url,
+                    "endpoint": f.endpoint,
+                    "method": f.method,
+                    "parameter": f.parameter,
+                    "description": f.description,
+                    "evidence": f.evidence,
+                    "payload": f.payload,
+                    "remediation": f.remediation,
+                    "references": f.references,
+                    "scanner": f.scanner_name,
+                }
+                for f in findings
+            ],
+            ensure_ascii=False,
+        )
 
-        exploit_json = json.dumps([
-            {
-                "finding_id": r.finding_id,
-                "exploit": r.exploit_name,
-                "success": r.success,
-                "payload": r.payload,
-                "evidence": r.evidence,
-            }
-            for r in ctx.exploit_results
-        ], ensure_ascii=False)
+        exploit_json = json.dumps(
+            [
+                {
+                    "finding_id": r.finding_id,
+                    "exploit": r.exploit_name,
+                    "success": r.success,
+                    "payload": r.payload,
+                    "evidence": r.evidence,
+                }
+                for r in ctx.exploit_results
+            ],
+            ensure_ascii=False,
+        )
 
         return HTML_TEMPLATE.format(
             target=ctx.target_url,

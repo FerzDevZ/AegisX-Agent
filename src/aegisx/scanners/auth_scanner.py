@@ -39,9 +39,7 @@ _MAX_PAGES = 30
 # ── JWT ────────────────────────────────────────────────────────
 
 # Compact JWS: header.payload.signature (base64url segments)
-_JWT_PATTERN = re.compile(
-    r"\beyJ[A-Za-z0-9_-]{4,}\.eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*"
-)
+_JWT_PATTERN = re.compile(r"\beyJ[A-Za-z0-9_-]{4,}\.eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*")
 
 SENSITIVE_CLAIMS = ["password", "password_hash", "ssn", "credit_card", "api_key"]
 
@@ -132,7 +130,9 @@ def _jwt_findings(token: str, url: str) -> list[Finding]:
                     "long secret, or better RS256/ES256) and reject tokens "
                     "with alg=none on the server."
                 ),
-                references=["https://datatracker.ietf.org/doc/html/rfc8725#name-algorithm-verification"],
+                references=[
+                    "https://datatracker.ietf.org/doc/html/rfc8725#name-algorithm-verification"
+                ],
             )
         )
 
@@ -226,14 +226,16 @@ async def check_jwt(config: AegisxConfig, urls: list[str]) -> list[Finding]:
 # ── Session management ─────────────────────────────────────────
 
 
-async def check_session_management(
-    config: AegisxConfig, urls: list[str]
-) -> list[Finding]:
+async def check_session_management(config: AegisxConfig, urls: list[str]) -> list[Finding]:
     """Detect session identifiers echoed in URLs (CWE-598)."""
     findings: list[Finding] = []
     session_param_names = [
-        "sessionid", "session_id", "sid",
-        "phpsessid", "jsessionid", "aspsessionid",
+        "sessionid",
+        "session_id",
+        "sid",
+        "phpsessid",
+        "jsessionid",
+        "aspsessionid",
     ]
     for resp in await _collect_sample_responses(config, urls):
         page_url = str(resp.request.url)
@@ -363,7 +365,9 @@ async def check_oauth(config: AegisxConfig, urls: list[str]) -> list[Finding]:
                                 "strings, no wildcards) and compare with "
                                 "strict string equality on the server."
                             ),
-                            references=["https://datatracker.ietf.org/doc/html/rfc6749#section-3.1.2"],
+                            references=[
+                                "https://datatracker.ietf.org/doc/html/rfc6749#section-3.1.2"
+                            ],
                         )
                     )
     return findings

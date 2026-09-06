@@ -50,8 +50,7 @@ class SARIFReporter(BaseReporter):
                         {
                             "executionSuccessful": True,
                             "startTimeUtc": ctx.started_at,
-                            "endTimeUtc": ctx.finished_at
-                            or datetime.now(UTC).isoformat(),
+                            "endTimeUtc": ctx.finished_at or datetime.now(UTC).isoformat(),
                         }
                     ],
                 }

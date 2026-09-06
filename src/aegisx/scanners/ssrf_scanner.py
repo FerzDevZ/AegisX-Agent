@@ -28,12 +28,48 @@ logger = get_logger("ssrf_scanner")
 # Parameter names that commonly take a URL the server may fetch or
 # redirect to. Long but cheap: it is just dictionary membership.
 URL_PARAMS = [
-    "url", "uri", "link", "redirect", "redirect_url", "redirect_uri",
-    "return", "return_url", "returnTo", "rurl", "r_uri", "next", "next_url",
-    "goto", "go", "target", "dest", "destination", "continue", "continue_url",
-    "callback", "callback_url", "cb", "forward", "out", "outs", "view",
-    "img", "image", "src", "source", "fetch", "load", "file", "path",
-    "domain", "site", "feed", "host", "reference", "u", "r",
+    "url",
+    "uri",
+    "link",
+    "redirect",
+    "redirect_url",
+    "redirect_uri",
+    "return",
+    "return_url",
+    "returnTo",
+    "rurl",
+    "r_uri",
+    "next",
+    "next_url",
+    "goto",
+    "go",
+    "target",
+    "dest",
+    "destination",
+    "continue",
+    "continue_url",
+    "callback",
+    "callback_url",
+    "cb",
+    "forward",
+    "out",
+    "outs",
+    "view",
+    "img",
+    "image",
+    "src",
+    "source",
+    "fetch",
+    "load",
+    "file",
+    "path",
+    "domain",
+    "site",
+    "feed",
+    "host",
+    "reference",
+    "u",
+    "r",
 ]
 
 # External host we place in parameter values to see whether the server
@@ -65,9 +101,7 @@ _INTERNAL_ERROR_SIGNATURES = [
 ]
 
 # Response markers proving an open redirect occurred.
-_REDIRECT_RESPONSE_PATTERN = re.compile(
-    r"^(?:https?:)?//" + re.escape(_PROBE_HOST), re.IGNORECASE
-)
+_REDIRECT_RESPONSE_PATTERN = re.compile(r"^(?:https?:)?//" + re.escape(_PROBE_HOST), re.IGNORECASE)
 
 _MAX_PROBE_PARAMS_PER_PAGE = 8
 _MAX_PAGES = 30
@@ -136,9 +170,7 @@ async def check_open_redirect(
         return None
 
     location = resp.headers.get("location", "")
-    if resp.status_code in (301, 302, 303, 307, 308) and _REDIRECT_RESPONSE_PATTERN.match(
-        location
-    ):
+    if resp.status_code in (301, 302, 303, 307, 308) and _REDIRECT_RESPONSE_PATTERN.match(location):
         return Finding(
             title=f"Open Redirect via '{param}' parameter",
             description=(
@@ -227,8 +259,7 @@ class SSRFScanner(BaseScanner):
 
     name = "ssrf_scanner"
     description = (
-        "Detects URL parameters vulnerable to Server-Side Request Forgery "
-        "and open redirects"
+        "Detects URL parameters vulnerable to Server-Side Request Forgery and open redirects"
     )
 
     async def validate_target(self) -> bool:
@@ -254,7 +285,8 @@ class SSRFScanner(BaseScanner):
 
         logger.info(
             "SSRF: probing %d URL parameter(s) on %d page(s)",
-            len(probes), len(candidates),
+            len(probes),
+            len(candidates),
         )
 
         for base_url, param in probes:

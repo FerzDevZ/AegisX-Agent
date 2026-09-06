@@ -192,9 +192,7 @@ class TestScopeEnforcement:
         config = _config()
         ctx = ScanContext(config=config, target_url=config.target_url)
         d = ToolDispatcher(config, ctx)
-        output = await d.execute(
-            "http_request", {"url": "https://evil.example.com/"}
-        )
+        output = await d.execute("http_request", {"url": "https://evil.example.com/"})
         data = json.loads(output)
         assert data.get("blocked") is True
         assert "scope" in data["error"].lower()
@@ -223,8 +221,8 @@ class TestScopeEnforcement:
         config = _config(exploit_verification=False)
         ctx = ScanContext(config=config, target_url=config.target_url)
         ctx.add_finding = ctx.add_finding  # noqa: PLW0127
-        from aegisx.core.context import Finding
         from aegisx.core.config import Severity
+        from aegisx.core.context import Finding
 
         f = Finding(
             id="VF-TEST0001",

@@ -153,9 +153,7 @@ def _scenario_parallel_tools() -> EvalScenario:
         target_url="https://eval-parallel.example.com",
         expect_tools_called=["get_findings", "compare_history"],
         script=[
-            ScriptedStep(
-                tool_calls=[("get_findings", {}), ("compare_history", {})]
-            ),
+            ScriptedStep(tool_calls=[("get_findings", {}), ("compare_history", {})]),
             ScriptedStep(content="Both parallel calls returned."),
         ],
     )
@@ -190,9 +188,7 @@ def _scenario_truncation_nudge() -> EvalScenario:
             # Iteration 2: after the nudge the model starts working
             ScriptedStep(tool_calls=[("run_recon", {})]),
             # Iteration 3: finishes properly
-            ScriptedStep(
-                tool_calls=[("generate_report", {"format": "markdown"})]
-            ),
+            ScriptedStep(tool_calls=[("generate_report", {"format": "markdown"})]),
             ScriptedStep(content="Assessment complete after nudge recovery." * 10),
         ],
     )
@@ -228,9 +224,7 @@ def _scenario_auth_probing() -> EvalScenario:
         expect_tools_called=["probe_auth", "generate_report"],
         script=[
             ScriptedStep(
-                tool_calls=[
-                    ("probe_auth", {"url": "https://eval-auth.example.com/login"})
-                ]
+                tool_calls=[("probe_auth", {"url": "https://eval-auth.example.com/login"})]
             ),
             ScriptedStep(tool_calls=[("generate_report", {"format": "markdown"})]),
             ScriptedStep(content="Auth probing complete; tokens analyzed." * 10),
@@ -248,9 +242,7 @@ def _scenario_ssrf_scope_block() -> EvalScenario:
         expect_scope_violation_blocked=True,
         script=[
             ScriptedStep(
-                tool_calls=[
-                    ("probe_ssrf", {"url": "http://169.254.169.254/latest/meta-data/"})
-                ]
+                tool_calls=[("probe_ssrf", {"url": "http://169.254.169.254/latest/meta-data/"})]
             ),
             ScriptedStep(content="The probe was blocked by scope enforcement." * 10),
         ],

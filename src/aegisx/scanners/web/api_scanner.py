@@ -19,20 +19,41 @@ logger = get_logger("api_scanner")
 
 # Paths commonly hosting API docs or sensitive endpoints
 API_PATHS = [
-    "/api", "/api/v1", "/api/v2", "/graphql",
-    "/login", "/register", "/signup", "/signin",
-    "/admin", "/dashboard", "/panel",
-    "/search", "/query",
-    "/upload", "/files",
-    "/wp-admin", "/wp-login.php",
-    "/.env", "/config", "/debug",
-    "/swagger", "/docs", "/api-docs",
+    "/api",
+    "/api/v1",
+    "/api/v2",
+    "/graphql",
+    "/login",
+    "/register",
+    "/signup",
+    "/signin",
+    "/admin",
+    "/dashboard",
+    "/panel",
+    "/search",
+    "/query",
+    "/upload",
+    "/files",
+    "/wp-admin",
+    "/wp-login.php",
+    "/.env",
+    "/config",
+    "/debug",
+    "/swagger",
+    "/docs",
+    "/api-docs",
 ]
 
 ERROR_INDICATORS = [
-    "exception", "stack trace", "traceback",
-    "error in", "line number", "sql state",
-    "nullpointer", "typeerror", "referenceerror",
+    "exception",
+    "stack trace",
+    "traceback",
+    "error in",
+    "line number",
+    "sql state",
+    "nullpointer",
+    "typeerror",
+    "referenceerror",
 ]
 
 
@@ -53,37 +74,41 @@ async def check_api_endpoints(config: AegisxConfig) -> list[Finding]:
                     if resp.status_code == 200:
                         # Swagger / OpenAPI
                         if "swagger" in body or "openapi" in body:
-                            findings.append(Finding(
-                                title="API Documentation Exposed",
-                                description=f"API documentation found at {path}. This exposes the full API surface to attackers.",
-                                severity=Severity.MEDIUM,
-                                cwe_id="CWE-200",
-                                owasp_category="A05:2021",
-                                url=url,
-                                endpoint=path,
-                                method="GET",
-                                evidence=resp.text[:300],
-                                remediation="Restrict API documentation to internal networks.",
-                            ))
+                            findings.append(
+                                Finding(
+                                    title="API Documentation Exposed",
+                                    description=f"API documentation found at {path}. This exposes the full API surface to attackers.",
+                                    severity=Severity.MEDIUM,
+                                    cwe_id="CWE-200",
+                                    owasp_category="A05:2021",
+                                    url=url,
+                                    endpoint=path,
+                                    method="GET",
+                                    evidence=resp.text[:300],
+                                    remediation="Restrict API documentation to internal networks.",
+                                )
+                            )
 
                         # GraphQL introspection
                         if "graphql" in body and "__schema" in body:
-                            findings.append(Finding(
-                                title="GraphQL Introspection Enabled",
-                                description="GraphQL introspection is enabled, exposing the entire schema to attackers.",
-                                severity=Severity.MEDIUM,
-                                cwe_id="CWE-200",
-                                owasp_category="A05:2021",
-                                url=url,
-                                endpoint=path,
-                                method="GET",
-                                remediation="Disable GraphQL introspection in production.",
-                            ))
+                            findings.append(
+                                Finding(
+                                    title="GraphQL Introspection Enabled",
+                                    description="GraphQL introspection is enabled, exposing the entire schema to attackers.",
+                                    severity=Severity.MEDIUM,
+                                    cwe_id="CWE-200",
+                                    owasp_category="A05:2021",
+                                    url=url,
+                                    endpoint=path,
+                                    method="GET",
+                                    remediation="Disable GraphQL introspection in production.",
+                                )
+                            )
 
                     # Verbose error messages
-                    if resp.status_code >= 400:
-                        if any(ind in body for ind in ERROR_INDICATORS):
-                            findings.append(Finding(
+                    if resp.status_code >= 400 and any(ind in body for ind in ERROR_INDICATORS):
+                        findings.append(
+                            Finding(
                                 title=f"Verbose Error at {path}",
                                 description=f"The endpoint {path} returns detailed error information.",
                                 severity=Severity.LOW,
@@ -94,7 +119,8 @@ async def check_api_endpoints(config: AegisxConfig) -> list[Finding]:
                                 method="GET",
                                 evidence=resp.text[:300],
                                 remediation="Use custom error pages.",
-                            ))
+                            )
+                        )
 
                 except (httpx.RequestError, httpx.TimeoutException):
                     continue

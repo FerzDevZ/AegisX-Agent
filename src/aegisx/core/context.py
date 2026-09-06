@@ -37,9 +37,7 @@ class Finding:
     references: list[str] = field(default_factory=list)
     scanner_name: str = ""
     raw_data: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def severity_order(self) -> int:
@@ -90,9 +88,7 @@ class ExploitResult:
     severity_before: Severity = Severity.INFO
     severity_after: Severity = Severity.INFO
     remediation: str = ""
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 @dataclass
@@ -121,9 +117,7 @@ class ScanContext:
     config: AegisxConfig = field(default_factory=AegisxConfig)
     scan_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     target_url: str = ""
-    started_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    started_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     finished_at: str = ""
 
     # Collected data

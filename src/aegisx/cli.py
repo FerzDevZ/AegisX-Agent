@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -25,6 +24,7 @@ from aegisx import __version__
 from aegisx.core.config import AegisxConfig, ReportFormat, ScanMode
 from aegisx.core.orchestrator import AegisxOrchestrator
 from aegisx.plugins import get_plugin_manager
+from aegisx.utils.notify import load_notify_config
 
 app = typer.Typer(
     name="aegisx",
@@ -52,47 +52,59 @@ def scan(
     target: str = typer.Argument(help="Target URL to scan (e.g. https://example.com)"),
     mode: ScanMode = typer.Option(
         ScanMode.QUICK,
-        "--mode", "-m",
+        "--mode",
+        "-m",
         help="Scan mode: passive, quick, full, stealth",
     ),
     report: ReportFormat = typer.Option(
         ReportFormat.MARKDOWN,
-        "--report", "-r",
+        "--report",
+        "-r",
         help="Report format: markdown, json, sarif, html, all",
     ),
     output: Path = typer.Option(
         Path("reports/"),
-        "--output", "-o",
+        "--output",
+        "-o",
         help="Report output directory",
     ),
     scope: str | None = typer.Option(
         None,
-        "--scope", "-s",
+        "--scope",
+        "-s",
         help="Comma-separated domain whitelist (default: target domain only)",
     ),
     max_depth: int = typer.Option(3, "--depth", "-d", help="Max crawl depth (1-10)"),
     rps: float = typer.Option(10.0, "--rps", help="Max requests per second"),
     exploit: bool = typer.Option(
         False,
-        "--exploit", "-e",
+        "--exploit",
+        "-e",
         help="Enable exploit verification (requires consent)",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     auth_token: str | None = typer.Option(None, "--auth", help="Auth token for target"),
     user_agent: str = typer.Option(
         f"AegisxAgent/{__version__} (Security Scanner)",
-        "--user-agent", "-ua",
+        "--user-agent",
+        "-ua",
         help="Custom User-Agent string",
     ),
     proxy: str | None = typer.Option(
         None,
-        "--proxy", "-p",
+        "--proxy",
+        "-p",
         help="Proxy URL for requests (e.g. http://127.0.0.1:8080 for Burp/ZAP)",
     ),
     siem: Path | None = typer.Option(
         None,
         "--siem",
         help="Export SIEM events (JSON-lines) to this file after the scan",
+    ),
+    notify: str | None = typer.Option(
+        None,
+        "--notify",
+        help="Webhook URL (Slack/Discord) to push the findings summary to",
     ),
 ) -> None:
     """Scan a target for vulnerabilities."""
@@ -136,6 +148,25 @@ def scan(
 
         out = export_siem(orchestrator.context, siem, fmt="jsonl")
         console.print(f"[green]✓[/] SIEM events exported to [cyan]{out}[/]")
+
+    # Optional webhook notification (best-effort, never fails the scan)
+    webhook = notify or load_notify_config()
+    if webhook:
+        from aegisx.utils.notify import send_notification
+
+        result = asyncio.run(
+            send_notification(
+                webhook,
+                list(orchestrator.context.findings),
+                target,
+                orchestrator.context.scan_id,
+                report_path=str(output) if output else "",
+            )
+        )
+        if result.ok:
+            console.print("[green]✓[/] Notification sent to webhook")
+        else:
+            console.print("[yellow]⚠[/] Notification delivery failed (scan unaffected)")
 
     # Exit with code based on findings
     if stats.critical_count > 0:
@@ -218,21 +249,32 @@ def _print_delta(piece: str) -> None:
 def agent(
     target: str = typer.Argument(None, help="Target URL for the AI to assess"),
     ai_provider: str = typer.Option(
-        "custom", "--ai-provider",
+        "custom",
+        "--ai-provider",
         help="AI preset: custom, deepseek, openai, groq, openrouter, ollama",
     ),
-    ai_base_url: Optional[str] = typer.Option(None, "--ai-base-url", help="OpenAI-compatible base URL"),
-    ai_api_key: Optional[str] = typer.Option(None, "--ai-api-key", help="AI API key (or set AEGISX_AI_API_KEY)"),
-    ai_model: Optional[str] = typer.Option(None, "--ai-model", help="Model name"),
+    ai_base_url: str | None = typer.Option(
+        None, "--ai-base-url", help="OpenAI-compatible base URL"
+    ),
+    ai_api_key: str | None = typer.Option(
+        None, "--ai-api-key", help="AI API key (or set AEGISX_AI_API_KEY)"
+    ),
+    ai_model: str | None = typer.Option(None, "--ai-model", help="Model name"),
     max_iterations: int = typer.Option(25, "--max-iterations", help="Agent loop budget"),
-    exploit: bool = typer.Option(False, "--exploit", "-e", help="Authorize exploit verification tools"),
+    exploit: bool = typer.Option(
+        False, "--exploit", "-e", help="Authorize exploit verification tools"
+    ),
     output: Path = typer.Option(Path("reports/"), "--output", "-o"),
     continue_id: str | None = typer.Option(
-        None, "--continue", "-c",
+        None,
+        "--continue",
+        "-c",
         help="Resume an interrupted agent run by scan ID ('list' shows sessions)",
     ),
     stream: bool = typer.Option(
-        False, "--stream", "-s",
+        False,
+        "--stream",
+        "-s",
         help="Stream the model's output as it is generated (falls back automatically)",
     ),
 ) -> None:
@@ -274,8 +316,12 @@ def agent(
                 "error": "[red]error[/]",
             }.get(r["status"], r["status"])
             table.add_row(
-                r["scan_id"], r["target_url"][:40], status_style,
-                str(r["iterations"]), str(r["tool_calls"]), r["updated_at"][:19],
+                r["scan_id"],
+                r["target_url"][:40],
+                status_style,
+                str(r["iterations"]),
+                str(r["tool_calls"]),
+                r["updated_at"][:19],
             )
         console.print(table)
         return
@@ -341,11 +387,7 @@ def agent(
     )
 
     try:
-        result = (
-            asyncio.run(bot.resume(continue_id))
-            if resuming
-            else asyncio.run(bot.run())
-        )
+        result = asyncio.run(bot.resume(continue_id)) if resuming else asyncio.run(bot.run())
     except ValueError as exc:
         console.print(f"[red]ERROR[/] {exc}")
         raise typer.Exit(code=1) from None
@@ -360,9 +402,11 @@ def agent(
         console.print(f"[bold red]Agent failed:[/] {result.error}")
         raise typer.Exit(code=1)
 
-    console.print(f"\n[dim]Iterations: {result.iterations_used}, "
-                  f"tool calls: {result.tool_calls_made}, "
-                  f"stopped: {result.stopped_reason}[/]\n")
+    console.print(
+        f"\n[dim]Iterations: {result.iterations_used}, "
+        f"tool calls: {result.tool_calls_made}, "
+        f"stopped: {result.stopped_reason}[/]\n"
+    )
     console.print(Panel(result.final_message or "(no summary)", title="📋 AI Assessment"))
 
 
@@ -370,9 +414,9 @@ def agent(
 def ask(
     question: str = typer.Argument(help="Question about the most recent scan"),
     ai_provider: str = typer.Option("custom", "--ai-provider", help="AI preset"),
-    ai_base_url: Optional[str] = typer.Option(None, "--ai-base-url"),
-    ai_api_key: Optional[str] = typer.Option(None, "--ai-api-key"),
-    ai_model: Optional[str] = typer.Option(None, "--ai-model"),
+    ai_base_url: str | None = typer.Option(None, "--ai-base-url"),
+    ai_api_key: str | None = typer.Option(None, "--ai-api-key"),
+    ai_model: str | None = typer.Option(None, "--ai-model"),
 ) -> None:
     """Ask the AI about the most recent scan history entry.
 
@@ -431,7 +475,10 @@ def ask(
                             "finding IDs. JSON scan data follows."
                         ),
                     },
-                    {"role": "user", "content": f"Scan data:\n{scan_summary}\n\nQuestion: {question}"},
+                    {
+                        "role": "user",
+                        "content": f"Scan data:\n{scan_summary}\n\nQuestion: {question}",
+                    },
                 ]
             )
         )
@@ -444,9 +491,9 @@ def ask(
 
 @app.command("ai-config")
 def ai_config(
-    base_url: Optional[str] = typer.Option(None, "--base-url", help="Base URL to test"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", help="API key to test"),
-    model: Optional[str] = typer.Option(None, "--model", help="Model to test"),
+    base_url: str | None = typer.Option(None, "--base-url", help="Base URL to test"),
+    api_key: str | None = typer.Option(None, "--api-key", help="API key to test"),
+    model: str | None = typer.Option(None, "--model", help="Model to test"),
     provider: str = typer.Option("custom", "--provider", help="Preset to test"),
 ) -> None:
     """Test AI endpoint connectivity and show the config that will be used."""
@@ -560,6 +607,90 @@ def history(
             str(s["high"]),
             str(s["medium"]),
             str(s["findings"]),
+        )
+    console.print(table)
+
+
+@app.command()
+def monitor(
+    target: str = typer.Argument(help="Target URL to watch (e.g. https://example.com)"),
+    every: int = typer.Option(
+        3600,
+        "--every",
+        "-e",
+        help="Seconds between scan cycles (default: 1 hour)",
+    ),
+    notify: str | None = typer.Option(
+        None,
+        "--notify",
+        help="Webhook URL (Slack/Discord) for new-finding alerts",
+    ),
+    max_cycles: int = typer.Option(
+        0, "--cycles", "-c", help="Stop after N cycles (0 = run forever)"
+    ),
+    mode: ScanMode = typer.Option(ScanMode.QUICK, "--mode", "-m", help="Scan mode"),
+    scope: str | None = typer.Option(
+        None, "--scope", "-s", help="Comma-separated domain whitelist"
+    ),
+) -> None:
+    """Continuous monitoring — re-scan on an interval, alert only on NEW findings."""
+    if not target.startswith(("http://", "https://")):
+        console.print("[red]ERROR[/] Target must start with http:// or https://")
+        raise typer.Exit(code=1)
+
+    from aegisx.monitoring import Monitor
+
+    webhook = notify or load_notify_config()
+    config_kwargs: dict = {
+        "target_url": target,
+        "scan_mode": mode,
+    }
+    if scope:
+        config_kwargs["scope"] = [s.strip() for s in scope.split(",")]
+
+    monitor_obj = Monitor(
+        AegisxConfig(**config_kwargs),
+        interval_seconds=every,
+        webhook_url=webhook,
+        max_cycles=max_cycles or None,
+    )
+
+    console.print(
+        Panel(
+            f"[bold]Continuous Monitoring[/]\n\n"
+            f"Target:    [cyan]{target}[/]\n"
+            f"Interval:  every {every}s\n"
+            f"Webhook:   {'configured' if webhook else '[dim]none[/]'}\n"
+            f"Cycles:    {max_cycles if max_cycles else '[dim]forever (Ctrl-C to stop)[/]'}",
+            title="📡 Monitor",
+            border_style="blue",
+        )
+    )
+
+    try:
+        cycles = asyncio.run(monitor_obj.run())
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Monitor stopped by user.[/]")
+        raise typer.Exit(code=0)
+
+    # Final summary
+    table = Table(title="📡 Monitoring Summary", border_style="blue")
+    table.add_column("Cycle", justify="right")
+    table.add_column("Scan ID", style="cyan")
+    table.add_column("Findings", justify="right")
+    table.add_column("New", justify="right")
+    table.add_column("Resolved", justify="right")
+    table.add_column("Duration", justify="right")
+    table.add_column("Status")
+    for c in cycles:
+        table.add_row(
+            str(c.cycle),
+            c.scan_id or "—",
+            str(c.total_findings),
+            str(len(c.new_findings)),
+            str(c.resolved_count),
+            f"{c.duration_seconds:.1f}s",
+            "[red]error[/]" if c.error else "[green]ok[/]",
         )
     console.print(table)
 

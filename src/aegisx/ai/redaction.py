@@ -29,36 +29,38 @@ _REDACTION_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), "slack-token"),
     (re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"), "google-api-key"),
     (re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b"), "gitlab-token"),
-
     # Bearer / auth headers
     (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{16,}"), "bearer-token"),
     (re.compile(r"(?i)\bbasic\s+[A-Za-z0-9+/=]{16,}"), "basic-auth"),
-
     # JSON Web Tokens (three base64url segments)
-    (re.compile(
-        r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"
-    ), "jwt"),
-
+    (re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"), "jwt"),
     # Database connection strings with inline credentials
-    (re.compile(
-        r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp|mssql)://"
-        r"[^:\s/]+:[^@\s/]+@[^\s]+",
-        re.IGNORECASE,
-    ), "db-connection-string"),
-
+    (
+        re.compile(
+            r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp|mssql)://"
+            r"[^:\s/]+:[^@\s/]+@[^\s]+",
+            re.IGNORECASE,
+        ),
+        "db-connection-string",
+    ),
     # Generic query-string secrets
-    (re.compile(
-        r"(?i)\b(?:api[_-]?key|token|secret|password|passwd|pwd|access[_-]?key)"
-        r"([=:])\s*[\"']?([A-Za-z0-9._~+/=-]{12,})[\"']?"
-    ), "key-value-secret"),
-
+    (
+        re.compile(
+            r"(?i)\b(?:api[_-]?key|token|secret|password|passwd|pwd|access[_-]?key)"
+            r"([=:])\s*[\"']?([A-Za-z0-9._~+/=-]{12,})[\"']?"
+        ),
+        "key-value-secret",
+    ),
     # Private key blocks (mask the whole blob) — when the END marker is
     # missing (truncated evidence), consume to end-of-string so partial
     # key material never leaks
-    (re.compile(
-        r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?"
-        r"(?:-----END [A-Z ]*PRIVATE KEY-----|(?![\s\S]))"
-    ), "private-key"),
+    (
+        re.compile(
+            r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?"
+            r"(?:-----END [A-Z ]*PRIVATE KEY-----|(?![\s\S]))"
+        ),
+        "private-key",
+    ),
 ]
 
 # Marker injected by this module — redact() is idempotent on output

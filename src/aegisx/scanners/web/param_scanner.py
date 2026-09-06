@@ -34,7 +34,7 @@ SQLI_PAYLOADS = [
 XSS_PAYLOADS = [
     "<script>alert(1)</script>",
     "<img src=x onerror=alert(1)>",
-    "\"><svg onload=alert(1)>",
+    '"><svg onload=alert(1)>',
     "javascript:alert(1)",
     "<body onload=alert(1)>",
     "'-alert(1)-'",
@@ -48,17 +48,35 @@ PATH_TRAVERSAL_PAYLOADS = [
 ]
 
 SQL_ERROR_PATTERNS = [
-    "sql syntax", "mysql", "sqlite", "postgresql",
-    "ora-", "microsoft sql", "unclosed quotation",
+    "sql syntax",
+    "mysql",
+    "sqlite",
+    "postgresql",
+    "ora-",
+    "microsoft sql",
+    "unclosed quotation",
     "quoted string not properly terminated",
     "you have an error in your sql",
-    "warning: mysql", "uncaught exception",
-    "odbc", "jdbc",
+    "warning: mysql",
+    "uncaught exception",
+    "odbc",
+    "jdbc",
 ]
 
 INJECTABLE_PARAMS = ["search", "q", "query", "id", "category", "location", "sort"]
-TRAVERSAL_PARAMS = ["file", "path", "page", "doc", "include", "template",
-                    "src", "img", "load", "read", "view"]
+TRAVERSAL_PARAMS = [
+    "file",
+    "path",
+    "page",
+    "doc",
+    "include",
+    "template",
+    "src",
+    "img",
+    "load",
+    "read",
+    "view",
+]
 
 # ── Helpers ────────────────────────────────────────────────────
 
@@ -107,7 +125,8 @@ async def check_sqli(
             # Get baseline for form extraction
             try:
                 baseline = await client.get(
-                    url, headers={"User-Agent": config.user_agent},
+                    url,
+                    headers={"User-Agent": config.user_agent},
                 )
             except (httpx.RequestError, httpx.TimeoutException):
                 baseline = None
@@ -125,26 +144,31 @@ async def check_sqli(
                         test_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}{sep}{urlencode(test_params)}"
 
                         resp = await client.get(
-                            test_url, headers={"User-Agent": config.user_agent},
+                            test_url,
+                            headers={"User-Agent": config.user_agent},
                         )
                         body = resp.text.lower()
                         if any(err in body for err in SQL_ERROR_PATTERNS):
-                            findings.append(Finding(
-                                title="SQL Injection (URL Parameter)",
-                                description=f"Parameter '{param_name}' in {parsed.path} is vulnerable to SQL injection.",
-                                severity=Severity.CRITICAL,
-                                cvss_score=9.8,
-                                cwe_id="CWE-89",
-                                owasp_category="A03:2021",
-                                url=test_url,
-                                endpoint=parsed.path,
-                                method="GET",
-                                parameter=param_name,
-                                evidence=resp.text[:500],
-                                payload=payload,
-                                remediation="Use parameterized queries.",
-                                references=["https://owasp.org/www-community/attacks/SQL_Injection"],
-                            ))
+                            findings.append(
+                                Finding(
+                                    title="SQL Injection (URL Parameter)",
+                                    description=f"Parameter '{param_name}' in {parsed.path} is vulnerable to SQL injection.",
+                                    severity=Severity.CRITICAL,
+                                    cvss_score=9.8,
+                                    cwe_id="CWE-89",
+                                    owasp_category="A03:2021",
+                                    url=test_url,
+                                    endpoint=parsed.path,
+                                    method="GET",
+                                    parameter=param_name,
+                                    evidence=resp.text[:500],
+                                    payload=payload,
+                                    remediation="Use parameterized queries.",
+                                    references=[
+                                        "https://owasp.org/www-community/attacks/SQL_Injection"
+                                    ],
+                                )
+                            )
                             break
                     except (httpx.RequestError, httpx.TimeoutException):
                         continue
@@ -159,26 +183,29 @@ async def check_sqli(
                                 test_data = {p: "test" for p in params}
                                 test_data[param_name] = payload
                                 resp = await client.post(
-                                    form_url, data=test_data,
+                                    form_url,
+                                    data=test_data,
                                     headers={"User-Agent": config.user_agent},
                                 )
                                 body = resp.text.lower()
                                 if any(err in body for err in SQL_ERROR_PATTERNS):
-                                    findings.append(Finding(
-                                        title="SQL Injection (Form)",
-                                        description=f"Parameter '{param_name}' in form at {parsed.path} is vulnerable.",
-                                        severity=Severity.CRITICAL,
-                                        cvss_score=9.8,
-                                        cwe_id="CWE-89",
-                                        owasp_category="A03:2021",
-                                        url=form_url,
-                                        endpoint=parsed.path,
-                                        method="POST",
-                                        parameter=param_name,
-                                        evidence=resp.text[:500],
-                                        payload=payload,
-                                        remediation="Use parameterized queries.",
-                                    ))
+                                    findings.append(
+                                        Finding(
+                                            title="SQL Injection (Form)",
+                                            description=f"Parameter '{param_name}' in form at {parsed.path} is vulnerable.",
+                                            severity=Severity.CRITICAL,
+                                            cvss_score=9.8,
+                                            cwe_id="CWE-89",
+                                            owasp_category="A03:2021",
+                                            url=form_url,
+                                            endpoint=parsed.path,
+                                            method="POST",
+                                            parameter=param_name,
+                                            evidence=resp.text[:500],
+                                            payload=payload,
+                                            remediation="Use parameterized queries.",
+                                        )
+                                    )
                                     break
                             except (httpx.RequestError, httpx.TimeoutException):
                                 continue
@@ -202,7 +229,14 @@ async def check_xss(
     base_url = f"{parsed.scheme}://{parsed.netloc}"
 
     existing_params = parse_qs(parsed.query)
-    test_param_names: set[str] = set(existing_params.keys()) | {"search", "q", "query", "name", "category", "location"}
+    test_param_names: set[str] = set(existing_params.keys()) | {
+        "search",
+        "q",
+        "query",
+        "name",
+        "category",
+        "location",
+    }
 
     try:
         async with create_client(config) as client:
@@ -219,25 +253,28 @@ async def check_xss(
                         test_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}{sep}{urlencode(test_params)}"
 
                         resp = await client.get(
-                            test_url, headers={"User-Agent": config.user_agent},
+                            test_url,
+                            headers={"User-Agent": config.user_agent},
                         )
                         if payload in resp.text:
-                            findings.append(Finding(
-                                title="Cross-Site Scripting (XSS) — Reflected",
-                                description=f"Parameter '{param_name}' in {parsed.path} reflects user input without encoding.",
-                                severity=Severity.HIGH,
-                                cvss_score=7.1,
-                                cwe_id="CWE-79",
-                                owasp_category="A03:2021",
-                                url=test_url,
-                                endpoint=parsed.path,
-                                method="GET",
-                                parameter=param_name,
-                                evidence=resp.text[:500],
-                                payload=payload,
-                                remediation="Encode all output and use CSP.",
-                                references=["https://owasp.org/www-community/attacks/xss/"],
-                            ))
+                            findings.append(
+                                Finding(
+                                    title="Cross-Site Scripting (XSS) — Reflected",
+                                    description=f"Parameter '{param_name}' in {parsed.path} reflects user input without encoding.",
+                                    severity=Severity.HIGH,
+                                    cvss_score=7.1,
+                                    cwe_id="CWE-79",
+                                    owasp_category="A03:2021",
+                                    url=test_url,
+                                    endpoint=parsed.path,
+                                    method="GET",
+                                    parameter=param_name,
+                                    evidence=resp.text[:500],
+                                    payload=payload,
+                                    remediation="Encode all output and use CSP.",
+                                    references=["https://owasp.org/www-community/attacks/xss/"],
+                                )
+                            )
                             break
                     except (httpx.RequestError, httpx.TimeoutException):
                         continue
@@ -256,25 +293,28 @@ async def check_xss(
                             test_data = {p: "test" for p in params}
                             test_data[param_name] = payload
                             resp = await client.post(
-                                form_url, data=test_data,
+                                form_url,
+                                data=test_data,
                                 headers={"User-Agent": config.user_agent},
                             )
                             if payload in resp.text:
-                                findings.append(Finding(
-                                    title="Cross-Site Scripting (XSS) — Form",
-                                    description=f"Parameter '{param_name}' reflects input without encoding.",
-                                    severity=Severity.HIGH,
-                                    cvss_score=7.1,
-                                    cwe_id="CWE-79",
-                                    owasp_category="A03:2021",
-                                    url=form_url,
-                                    endpoint=parsed.path,
-                                    method="POST",
-                                    parameter=param_name,
-                                    evidence=resp.text[:500],
-                                    payload=payload,
-                                    remediation="Encode all output and use CSP.",
-                                ))
+                                findings.append(
+                                    Finding(
+                                        title="Cross-Site Scripting (XSS) — Form",
+                                        description=f"Parameter '{param_name}' reflects input without encoding.",
+                                        severity=Severity.HIGH,
+                                        cvss_score=7.1,
+                                        cwe_id="CWE-79",
+                                        owasp_category="A03:2021",
+                                        url=form_url,
+                                        endpoint=parsed.path,
+                                        method="POST",
+                                        parameter=param_name,
+                                        evidence=resp.text[:500],
+                                        payload=payload,
+                                        remediation="Encode all output and use CSP.",
+                                    )
+                                )
                                 break
                         except (httpx.RequestError, httpx.TimeoutException):
                             continue
@@ -304,25 +344,30 @@ async def check_path_traversal(
                         sep = "&" if "?" in url else "?"
                         test_url = f"{url}{sep}{param}={payload}"
                         resp = await client.get(
-                            test_url, headers={"User-Agent": config.user_agent},
+                            test_url,
+                            headers={"User-Agent": config.user_agent},
                         )
                         if "root:" in resp.text or "bin/bash" in resp.text:
-                            findings.append(Finding(
-                                title="Path Traversal",
-                                description=f"Parameter '{param}' allows directory traversal.",
-                                severity=Severity.HIGH,
-                                cvss_score=7.5,
-                                cwe_id="CWE-22",
-                                owasp_category="A01:2021",
-                                url=test_url,
-                                endpoint=parsed.path,
-                                method="GET",
-                                parameter=param,
-                                evidence=resp.text[:500],
-                                payload=payload,
-                                remediation="Validate and sanitize file paths.",
-                                references=["https://owasp.org/www-community/attacks/Path_Traversal"],
-                            ))
+                            findings.append(
+                                Finding(
+                                    title="Path Traversal",
+                                    description=f"Parameter '{param}' allows directory traversal.",
+                                    severity=Severity.HIGH,
+                                    cvss_score=7.5,
+                                    cwe_id="CWE-22",
+                                    owasp_category="A01:2021",
+                                    url=test_url,
+                                    endpoint=parsed.path,
+                                    method="GET",
+                                    parameter=param,
+                                    evidence=resp.text[:500],
+                                    payload=payload,
+                                    remediation="Validate and sanitize file paths.",
+                                    references=[
+                                        "https://owasp.org/www-community/attacks/Path_Traversal"
+                                    ],
+                                )
+                            )
                             break
                     except (httpx.RequestError, httpx.TimeoutException):
                         continue

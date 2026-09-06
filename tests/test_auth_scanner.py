@@ -33,6 +33,7 @@ def _config(**overrides) -> AegisxConfig:
 
 def _make_jwt(header: dict, payload: dict) -> str:
     """Build an unsigned JWT-shaped string for tests."""
+
     def enc(obj: dict) -> str:
         return base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b"=").decode()
 
@@ -108,9 +109,7 @@ class TestJWTFindingGeneration:
     @pytest.mark.asyncio
     async def test_healthy_jwt_no_findings(self):
         now = int(time.time())
-        token = _make_jwt(
-            {"alg": "RS256"}, {"sub": "1", "iat": now, "exp": now + 600}
-        )
+        token = _make_jwt({"alg": "RS256"}, {"sub": "1", "iat": now, "exp": now + 600})
         respx.get(url__startswith="https://test.example.com/").mock(
             return_value=httpx.Response(200, text=token)
         )

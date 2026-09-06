@@ -340,9 +340,7 @@ class TestStreaming:
                 self._turn += 1
                 if self._turn == 1:
                     return ChatResult(
-                        tool_calls=[
-                            ToolCall(id="c1", name="get_findings", arguments={})
-                        ],
+                        tool_calls=[ToolCall(id="c1", name="get_findings", arguments={})],
                         finish_reason="tool_calls",
                         usage={},
                     )
@@ -454,9 +452,7 @@ class TestProbeSSRFTool:
             side_effect=lambda req: (
                 httpx.Response(
                     302,
-                    headers={
-                        "Location": "https://aegisx-probe.example.com/redirect-test"
-                    },
+                    headers={"Location": "https://aegisx-probe.example.com/redirect-test"},
                 )
                 if "aegisx-probe" in str(req.url)
                 else httpx.Response(200, text="ok")
@@ -495,6 +491,7 @@ class TestProbeSSRFTool:
 
 def _make_jwt(header: dict, payload: dict) -> str:
     """Build an unsigned JWT-shaped string for tests."""
+
     def enc(obj: dict) -> str:
         return base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b"=").decode()
 
@@ -588,9 +585,7 @@ class TestNudgeEvalScenario:
     async def test_nudge_scenario_passes(self):
         from aegisx.ai.evals import EvalRunner
 
-        scenario = next(
-            s for s in BUILTIN_SCENARIOS if s.name == "truncation_nudge_recovery"
-        )
+        scenario = next(s for s in BUILTIN_SCENARIOS if s.name == "truncation_nudge_recovery")
         result = await EvalRunner().run_scenario(scenario)
         assert result.passed, result.checks
 
@@ -606,9 +601,7 @@ class TestProbingEvalScenarios:
     async def test_ssrf_probing_flow_passes(self):
         from aegisx.ai.evals import EvalRunner
 
-        scenario = next(
-            s for s in BUILTIN_SCENARIOS if s.name == "ssrf_probing_flow"
-        )
+        scenario = next(s for s in BUILTIN_SCENARIOS if s.name == "ssrf_probing_flow")
         result = await EvalRunner().run_scenario(scenario)
         assert result.passed, result.checks
 
@@ -616,9 +609,7 @@ class TestProbingEvalScenarios:
     async def test_auth_probing_flow_passes(self):
         from aegisx.ai.evals import EvalRunner
 
-        scenario = next(
-            s for s in BUILTIN_SCENARIOS if s.name == "auth_probing_flow"
-        )
+        scenario = next(s for s in BUILTIN_SCENARIOS if s.name == "auth_probing_flow")
         result = await EvalRunner().run_scenario(scenario)
         assert result.passed, result.checks
 
@@ -626,9 +617,7 @@ class TestProbingEvalScenarios:
     async def test_ssrf_scope_block_scenario_passes(self):
         from aegisx.ai.evals import EvalRunner
 
-        scenario = next(
-            s for s in BUILTIN_SCENARIOS if s.name == "ssrf_probe_scope_blocked"
-        )
+        scenario = next(s for s in BUILTIN_SCENARIOS if s.name == "ssrf_probe_scope_blocked")
         result = await EvalRunner().run_scenario(scenario)
         assert result.passed, result.checks
         assert result.checks.get("scope_violation_blocked") is True

@@ -20,13 +20,29 @@ logger = get_logger("crawler")
 
 # Common paths probed during discovery
 COMMON_PATHS: list[str] = [
-    "/login", "/register", "/signup", "/signin",
-    "/admin", "/dashboard", "/panel", "/settings",
-    "/services", "/search", "/profile", "/account",
-    "/api", "/api/v1", "/graphql",
-    "/wp-admin", "/wp-login.php",
-    "/swagger", "/docs", "/api-docs",
-    "/.env", "/config", "/debug",
+    "/login",
+    "/register",
+    "/signup",
+    "/signin",
+    "/admin",
+    "/dashboard",
+    "/panel",
+    "/settings",
+    "/services",
+    "/search",
+    "/profile",
+    "/account",
+    "/api",
+    "/api/v1",
+    "/graphql",
+    "/wp-admin",
+    "/wp-login.php",
+    "/swagger",
+    "/docs",
+    "/api-docs",
+    "/.env",
+    "/config",
+    "/debug",
 ]
 
 # HTML link extraction pattern
@@ -39,9 +55,7 @@ def _is_in_scope(url: str, config: AegisxConfig) -> bool:
         return False
     parsed = urlparse(url)
     # Skip non-HTTP schemes and fragments
-    if parsed.scheme not in ("http", "https"):
-        return False
-    return True
+    return parsed.scheme in ("http", "https")
 
 
 async def _fetch_one(
@@ -103,17 +117,13 @@ async def crawl_pages(
         probe_urls = [
             f"{base_url}{path}"
             for path in COMMON_PATHS
-            if _is_in_scope(f"{base_url}{path}", config)
-            and f"{base_url}{path}" not in discovered
+            if _is_in_scope(f"{base_url}{path}", config) and f"{base_url}{path}" not in discovered
         ]
 
         if probe_urls:
-            tasks = [
-                _probe_path(client, url, config, semaphore)
-                for url in probe_urls
-            ]
+            tasks = [_probe_path(client, url, config, semaphore) for url in probe_urls]
             results = await asyncio.gather(*tasks)
-            for url, ok in zip(probe_urls, results):
+            for url, ok in zip(probe_urls, results, strict=False):
                 if ok:
                     discovered.add(url)
 

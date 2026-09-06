@@ -49,7 +49,15 @@ class MarkdownReporter(BaseReporter):
         if total == 0:
             return "## Executive Summary\n\n✅ **No vulnerabilities found.** The target appears secure against the scanned attack vectors."
 
-        risk_level = "CRITICAL" if stats.critical_count else "HIGH" if stats.high_count else "MEDIUM" if stats.medium_count else "LOW"
+        risk_level = (
+            "CRITICAL"
+            if stats.critical_count
+            else "HIGH"
+            if stats.high_count
+            else "MEDIUM"
+            if stats.medium_count
+            else "LOW"
+        )
         return (
             f"## Executive Summary\n\n"
             f"⚠️ **Risk Level: {risk_level}**\n\n"

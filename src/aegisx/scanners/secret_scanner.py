@@ -48,30 +48,67 @@ class SecretScanner(BaseScanner):
         (r"(?i)redis://[^\s]+", "Redis Connection String", Severity.HIGH, 7.0),
         (r"sk_live_[A-Za-z0-9]+", "Stripe Live Key", Severity.CRITICAL, 9.5),
         (r"rk_live_[A-Za-z0-9]+", "Stripe Restricted Key", Severity.CRITICAL, 9.5),
-        (r"(?i)aws[_-]?secret[_-]?access[_-]?key\s*[:=]\s*['\"]?[A-Za-z0-9/+=]{40}", "AWS Secret Key", Severity.CRITICAL, 9.5),
+        (
+            r"(?i)aws[_-]?secret[_-]?access[_-]?key\s*[:=]\s*['\"]?[A-Za-z0-9/+=]{40}",
+            "AWS Secret Key",
+            Severity.CRITICAL,
+            9.5,
+        ),
     ]
 
     # Extended list of paths to scan
     SECRET_PATHS = [
-        "/.env", "/.env.local", "/.env.production", "/.env.development",
-        "/.env.staging", "/.env.backup",
-        "/config.json", "/config.yml", "/config.yaml", "/config.js",
-        "/config.php", "/config.py", "/config.rb",
-        "/wp-config.php", "/wp-config.php.bak",
-        "/.git/config", "/.git/HEAD",
-        "/.htaccess", "/.htpasswd",
-        "/server.js", "/app.js", "/main.js", "/bundle.js",
-        "/robots.txt", "/sitemap.xml",
-        "/swagger.json", "/openapi.json", "/swagger-ui/",
-        "/graphql", "/graphiql",
-        "/debug", "/debug/vars", "/debug/pprof/",
-        "/phpinfo.php", "/info.php", "/test.php",
-        "/server-status", "/server-info",
-        "/elmah.axd", "/trace.axd",
-        "/backup", "/backup.sql", "/backup.zip", "/dump.sql",
-        "/database.sql", "/db.sql",
-        "/package.json", "/composer.json", "/Gemfile",
-        "/Dockerfile", "/docker-compose.yml",
+        "/.env",
+        "/.env.local",
+        "/.env.production",
+        "/.env.development",
+        "/.env.staging",
+        "/.env.backup",
+        "/config.json",
+        "/config.yml",
+        "/config.yaml",
+        "/config.js",
+        "/config.php",
+        "/config.py",
+        "/config.rb",
+        "/wp-config.php",
+        "/wp-config.php.bak",
+        "/.git/config",
+        "/.git/HEAD",
+        "/.htaccess",
+        "/.htpasswd",
+        "/server.js",
+        "/app.js",
+        "/main.js",
+        "/bundle.js",
+        "/robots.txt",
+        "/sitemap.xml",
+        "/swagger.json",
+        "/openapi.json",
+        "/swagger-ui/",
+        "/graphql",
+        "/graphiql",
+        "/debug",
+        "/debug/vars",
+        "/debug/pprof/",
+        "/phpinfo.php",
+        "/info.php",
+        "/test.php",
+        "/server-status",
+        "/server-info",
+        "/elmah.axd",
+        "/trace.axd",
+        "/backup",
+        "/backup.sql",
+        "/backup.zip",
+        "/dump.sql",
+        "/database.sql",
+        "/db.sql",
+        "/package.json",
+        "/composer.json",
+        "/Gemfile",
+        "/Dockerfile",
+        "/docker-compose.yml",
         "/.aws/credentials",
         "/firebase.json",
         "/.ssh/authorized_keys",
@@ -135,9 +172,7 @@ class SecretScanner(BaseScanner):
                             pass
                         return []
 
-                path_results = await asyncio.gather(
-                    *[_check_path(p) for p in self.SECRET_PATHS]
-                )
+                path_results = await asyncio.gather(*[_check_path(p) for p in self.SECRET_PATHS])
                 for result in path_results:
                     findings += result
 
@@ -181,9 +216,7 @@ class SecretScanner(BaseScanner):
         for raw in js_urls[:5]:
             if raw.startswith("//"):
                 resolved.append("https:" + raw)
-            elif raw.startswith("/"):
-                resolved.append(urljoin(self.config.target_url, raw))
-            elif not raw.startswith("http"):
+            elif raw.startswith("/") or not raw.startswith("http"):
                 resolved.append(urljoin(self.config.target_url, raw))
             else:
                 resolved.append(raw)
@@ -194,9 +227,7 @@ class SecretScanner(BaseScanner):
 
         return findings
 
-    def _scan_content(
-        self, content: str, url: str, source: str
-    ) -> list[Finding]:
+    def _scan_content(self, content: str, url: str, source: str) -> list[Finding]:
         """Scan content for secret patterns."""
         findings = []
 
@@ -209,27 +240,29 @@ class SecretScanner(BaseScanner):
 
                 evidence = match[:100] + "..." if len(match) > 100 else match
 
-                findings.append(Finding(
-                    title=f"Exposed {name}",
-                    description=(
-                        f"A {name} was found in {source}. "
-                        "Exposed credentials can be used by attackers to access "
-                        "the associated service."
-                    ),
-                    severity=severity,
-                    cvss_score=cvss,
-                    cwe_id="CWE-798",
-                    owasp_category="A07:2021",
-                    url=url,
-                    evidence=evidence,
-                    remediation=(
-                        f"Rotate the exposed {name} immediately. "
-                        "Move all secrets to environment variables or a secrets manager."
-                    ),
-                    references=[
-                        "https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password",
-                    ],
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Exposed {name}",
+                        description=(
+                            f"A {name} was found in {source}. "
+                            "Exposed credentials can be used by attackers to access "
+                            "the associated service."
+                        ),
+                        severity=severity,
+                        cvss_score=cvss,
+                        cwe_id="CWE-798",
+                        owasp_category="A07:2021",
+                        url=url,
+                        evidence=evidence,
+                        remediation=(
+                            f"Rotate the exposed {name} immediately. "
+                            "Move all secrets to environment variables or a secrets manager."
+                        ),
+                        references=[
+                            "https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password",
+                        ],
+                    )
+                )
 
         return findings
 
@@ -242,6 +275,4 @@ class SecretScanner(BaseScanner):
         if match in ["your-api-key", "xxx", "changeme", "placeholder", "test"]:
             return True
         # Too short to be real
-        if len(match) < 10:
-            return True
-        return False
+        return len(match) < 10

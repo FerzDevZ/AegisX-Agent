@@ -35,12 +35,8 @@ class AgentSessionState:
     target_url: str
     model: str = ""
     endpoint: str = ""
-    created_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
-    updated_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     iterations_used: int = 0
     tool_calls_made: int = 0
     http_requests_made: int = 0

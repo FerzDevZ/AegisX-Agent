@@ -117,15 +117,12 @@ class AegisxAgent:
         if state is None:
             raise ValueError(f"No such agent session: {scan_id}")
         if state.status in ("done", "budget", "error"):
-            raise ValueError(
-                f"Session {scan_id} already finished (status={state.status})"
-            )
+            raise ValueError(f"Session {scan_id} already finished (status={state.status})")
 
         self.messages = list(state.messages)
         self.context.scan_id = state.scan_id
         logger.info(
-            "[bold blue]AGENT[/] resuming %s (target=%s, %d prior iterations, "
-            "%d tool calls)",
+            "[bold blue]AGENT[/] resuming %s (target=%s, %d prior iterations, %d tool calls)",
             scan_id,
             state.target_url,
             state.iterations_used,
@@ -139,13 +136,9 @@ class AegisxAgent:
             prompt_tokens=state.prompt_tokens,
             completion_tokens=state.completion_tokens,
         )
-        return await self._drive_loop(
-            result, start_iteration=state.iterations_used + 1
-        )
+        return await self._drive_loop(result, start_iteration=state.iterations_used + 1)
 
-    async def _drive_loop(
-        self, result: AgentResult, start_iteration: int
-    ) -> AgentResult:
+    async def _drive_loop(self, result: AgentResult, start_iteration: int) -> AgentResult:
         """Run the tool-calling loop from ``start_iteration`` until done/budget/error."""
         max_iters = self.config.ai_max_iterations
 
@@ -173,9 +166,7 @@ class AegisxAgent:
                             "falling back to plain request"
                         )
                         self.on_delta = None
-                        chat = await self.provider.chat(
-                            self.messages, tools=TOOL_SCHEMAS
-                        )
+                        chat = await self.provider.chat(self.messages, tools=TOOL_SCHEMAS)
                 else:
                     chat = await self.provider.chat(self.messages, tools=TOOL_SCHEMAS)
                 result.tool_calls_made += len(chat.tool_calls)
@@ -199,9 +190,7 @@ class AegisxAgent:
                             "— nudging model to continue",
                             len(content),
                         )
-                        self.messages.append(
-                            {"role": "assistant", "content": content}
-                        )
+                        self.messages.append({"role": "assistant", "content": content})
                         self.messages.append(
                             {
                                 "role": "user",
@@ -331,15 +320,13 @@ class AegisxAgent:
 
         if facts:
             self._context_digest = (
-                (self._context_digest + "\n" if self._context_digest else "")
-                + "\n".join(f"- {f}" for f in facts[-20:])
-            )
+                self._context_digest + "\n" if self._context_digest else ""
+            ) + "\n".join(f"- {f}" for f in facts[-20:])
             # Refresh (not append) the digest message right after the head
             digest_msg = {
                 "role": "user",
                 "content": (
-                    "[CONTEXT DIGEST — earlier tool results, condensed]\n"
-                    f"{self._context_digest}"
+                    f"[CONTEXT DIGEST — earlier tool results, condensed]\n{self._context_digest}"
                 ),
             }
             self.messages = head + [digest_msg] + tail

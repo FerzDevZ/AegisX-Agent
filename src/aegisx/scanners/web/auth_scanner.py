@@ -33,6 +33,7 @@ async def check_auth_bypass(
         async with create_client(config) as client:
             for url in urls:
                 from urllib.parse import urlparse
+
                 parsed = urlparse(url)
                 path = parsed.path.rstrip("/")
 
@@ -48,25 +49,27 @@ async def check_auth_bypass(
                     if response.status_code == 200:
                         body = response.text.lower()
                         if any(kw in body for kw in DASHBOARD_KEYWORDS):
-                            findings.append(Finding(
-                                title="Protected Page Accessible Without Auth",
-                                description=(
-                                    f"The page {path} is accessible without authentication. "
-                                    "Protected pages should require login and return 401/403."
-                                ),
-                                severity=Severity.HIGH,
-                                cvss_score=7.5,
-                                cwe_id="CWE-306",
-                                owasp_category="A07:2021",
-                                url=url,
-                                endpoint=path,
-                                method="GET",
-                                evidence=f"HTTP {response.status_code} — page content accessible",
-                                remediation="Add authentication middleware to protect sensitive pages.",
-                                references=[
-                                    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/03-Authentication_Testing/"
-                                ],
-                            ))
+                            findings.append(
+                                Finding(
+                                    title="Protected Page Accessible Without Auth",
+                                    description=(
+                                        f"The page {path} is accessible without authentication. "
+                                        "Protected pages should require login and return 401/403."
+                                    ),
+                                    severity=Severity.HIGH,
+                                    cvss_score=7.5,
+                                    cwe_id="CWE-306",
+                                    owasp_category="A07:2021",
+                                    url=url,
+                                    endpoint=path,
+                                    method="GET",
+                                    evidence=f"HTTP {response.status_code} — page content accessible",
+                                    remediation="Add authentication middleware to protect sensitive pages.",
+                                    references=[
+                                        "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/03-Authentication_Testing/"
+                                    ],
+                                )
+                            )
 
                 except (httpx.RequestError, httpx.TimeoutException) as exc:
                     logger.debug("Auth bypass check for %s failed: %s", url, exc)

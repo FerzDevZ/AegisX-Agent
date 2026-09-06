@@ -37,6 +37,7 @@ def _isolate_config_env(monkeypatch, tmp_path):
     monkeypatch.setenv("AEGISX_HISTORY_DB", str(tmp_path / "history.db"))
     yield
 
+
 from aegisx.core.config import AegisxConfig, ReportFormat, ScanMode, Severity
 from aegisx.core.context import Finding, ScanContext
 

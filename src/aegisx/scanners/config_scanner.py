@@ -29,9 +29,15 @@ class ConfigScanner(BaseScanner):
 
     # Paths to check for misconfigurations
     CHECK_PATHS = [
-        "/", "/admin", "/login", "/wp-admin",
-        "/debug", "/.env", "/config",
-        "/robots.txt", "/sitemap.xml",
+        "/",
+        "/admin",
+        "/login",
+        "/wp-admin",
+        "/debug",
+        "/.env",
+        "/config",
+        "/robots.txt",
+        "/sitemap.xml",
     ]
 
     async def validate_target(self) -> bool:
@@ -95,23 +101,25 @@ class ConfigScanner(BaseScanner):
 
         for indicator, description in debug_indicators:
             if indicator in body:
-                findings.append(Finding(
-                    title="Debug Mode / Error Details Exposed",
-                    description=(
-                        f"{description}. Debug mode in production exposes sensitive "
-                        "information including stack traces and environment variables."
-                    ),
-                    severity=Severity.MEDIUM,
-                    cwe_id="CWE-215",
-                    owasp_category="A05:2021",
-                    url=str(response.url),
-                    method="GET",
-                    evidence=description,
-                    remediation=(
-                        "Disable debug mode in production. "
-                        "Use environment-specific configuration."
-                    ),
-                ))
+                findings.append(
+                    Finding(
+                        title="Debug Mode / Error Details Exposed",
+                        description=(
+                            f"{description}. Debug mode in production exposes sensitive "
+                            "information including stack traces and environment variables."
+                        ),
+                        severity=Severity.MEDIUM,
+                        cwe_id="CWE-215",
+                        owasp_category="A05:2021",
+                        url=str(response.url),
+                        method="GET",
+                        evidence=description,
+                        remediation=(
+                            "Disable debug mode in production. "
+                            "Use environment-specific configuration."
+                        ),
+                    )
+                )
                 break
 
         return findings
@@ -133,19 +141,21 @@ class ConfigScanner(BaseScanner):
 
         for indicator, name in default_indicators:
             if indicator in body:
-                findings.append(Finding(
-                    title=f"Default Installation Page: {name}",
-                    description=(
-                        f"The server displays the {name}. "
-                        "Default pages reveal server technology and version."
-                    ),
-                    severity=Severity.LOW,
-                    cwe_id="CWE-200",
-                    owasp_category="A05:2021",
-                    url=str(response.url),
-                    method="GET",
-                    remediation=f"Replace the {name} with application content.",
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Default Installation Page: {name}",
+                        description=(
+                            f"The server displays the {name}. "
+                            "Default pages reveal server technology and version."
+                        ),
+                        severity=Severity.LOW,
+                        cwe_id="CWE-200",
+                        owasp_category="A05:2021",
+                        url=str(response.url),
+                        method="GET",
+                        remediation=f"Replace the {name} with application content.",
+                    )
+                )
                 break
 
         return findings
@@ -164,22 +174,24 @@ class ConfigScanner(BaseScanner):
         ]
 
         if any(indicator in body for indicator in listing_indicators):
-            findings.append(Finding(
-                title="Directory Listing Enabled",
-                description=(
-                    "The server displays directory contents when no index file exists. "
-                    "This exposes file structure and potentially sensitive files."
-                ),
-                severity=Severity.MEDIUM,
-                cwe_id="CWE-548",
-                owasp_category="A01:2021",
-                url=str(response.url),
-                method="GET",
-                remediation=(
-                    "Disable directory listing in web server configuration. "
-                    "Add index files to directories."
-                ),
-            ))
+            findings.append(
+                Finding(
+                    title="Directory Listing Enabled",
+                    description=(
+                        "The server displays directory contents when no index file exists. "
+                        "This exposes file structure and potentially sensitive files."
+                    ),
+                    severity=Severity.MEDIUM,
+                    cwe_id="CWE-548",
+                    owasp_category="A01:2021",
+                    url=str(response.url),
+                    method="GET",
+                    remediation=(
+                        "Disable directory listing in web server configuration. "
+                        "Add index files to directories."
+                    ),
+                )
+            )
 
         return findings
 
@@ -192,21 +204,26 @@ class ConfigScanner(BaseScanner):
 
         for method in dangerous_methods:
             if method in allow.upper():
-                findings.append(Finding(
-                    title=f"Dangerous HTTP Method: {method}",
-                    description=(
-                        f"The {method} HTTP method is enabled. "
-                        + ("TRACE can be used for cross-site tracing attacks." if method == "TRACE"
-                           else f"{method} may expose additional attack surface.")
-                    ),
-                    severity=Severity.HIGH if method == "TRACE" else Severity.LOW,
-                    cwe_id="CWE-16",
-                    owasp_category="A05:2021",
-                    url=str(response.url),
-                    method=method,
-                    evidence=f"Allow: {allow}",
-                    remediation=f"Disable the {method} method in web server configuration.",
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Dangerous HTTP Method: {method}",
+                        description=(
+                            f"The {method} HTTP method is enabled. "
+                            + (
+                                "TRACE can be used for cross-site tracing attacks."
+                                if method == "TRACE"
+                                else f"{method} may expose additional attack surface."
+                            )
+                        ),
+                        severity=Severity.HIGH if method == "TRACE" else Severity.LOW,
+                        cwe_id="CWE-16",
+                        owasp_category="A05:2021",
+                        url=str(response.url),
+                        method=method,
+                        evidence=f"Allow: {allow}",
+                        remediation=f"Disable the {method} method in web server configuration.",
+                    )
+                )
 
         return findings
 
@@ -219,47 +236,56 @@ class ConfigScanner(BaseScanner):
         # Check X-Powered-By
         powered_by = headers.get("x-powered-by", "")
         if powered_by:
-            findings.append(Finding(
-                title="X-Powered-By Header Exposed",
-                description=(
-                    f"The X-Powered-By header reveals: '{powered_by}'. "
-                    "This exposes the technology stack."
-                ),
-                severity=Severity.LOW,
-                cwe_id="CWE-200",
-                owasp_category="A05:2021",
-                url=str(response.url),
-                method="GET",
-                evidence=f"X-Powered-By: {powered_by}",
-                remediation="Remove the X-Powered-By header from production.",
-            ))
+            findings.append(
+                Finding(
+                    title="X-Powered-By Header Exposed",
+                    description=(
+                        f"The X-Powered-By header reveals: '{powered_by}'. "
+                        "This exposes the technology stack."
+                    ),
+                    severity=Severity.LOW,
+                    cwe_id="CWE-200",
+                    owasp_category="A05:2021",
+                    url=str(response.url),
+                    method="GET",
+                    evidence=f"X-Powered-By: {powered_by}",
+                    remediation="Remove the X-Powered-By header from production.",
+                )
+            )
 
         # Check for verbose error pages
         if response.status_code >= 400:
             body = response.text.lower()
             error_indicators = [
-                "exception", "stack trace", "traceback",
-                "debug", "error in", "line number",
-                "nullpointer", "sqlstate",
+                "exception",
+                "stack trace",
+                "traceback",
+                "debug",
+                "error in",
+                "line number",
+                "nullpointer",
+                "sqlstate",
             ]
             if any(indicator in body for indicator in error_indicators):
-                findings.append(Finding(
-                    title="Verbose Error Page",
-                    description=(
-                        "The server displays detailed error information including "
-                        "stack traces or debug information."
-                    ),
-                    severity=Severity.MEDIUM,
-                    cwe_id="CWE-209",
-                    owasp_category="A05:2021",
-                    url=str(response.url),
-                    method="GET",
-                    evidence=response.text[:500],
-                    remediation=(
-                        "Configure custom error pages that don't expose "
-                        "internal details. Log errors server-side only."
-                    ),
-                ))
+                findings.append(
+                    Finding(
+                        title="Verbose Error Page",
+                        description=(
+                            "The server displays detailed error information including "
+                            "stack traces or debug information."
+                        ),
+                        severity=Severity.MEDIUM,
+                        cwe_id="CWE-209",
+                        owasp_category="A05:2021",
+                        url=str(response.url),
+                        method="GET",
+                        evidence=response.text[:500],
+                        remediation=(
+                            "Configure custom error pages that don't expose "
+                            "internal details. Log errors server-side only."
+                        ),
+                    )
+                )
 
         return findings
 
@@ -280,20 +306,22 @@ class ConfigScanner(BaseScanner):
 
         for indicator, description in admin_indicators:
             if indicator in body:
-                findings.append(Finding(
-                    title="Admin Panel Exposed",
-                    description=(
-                        f"{description}. Exposed admin panels are "
-                        "prime targets for brute-force attacks."
-                    ),
-                    severity=Severity.MEDIUM,
-                    cwe_id="CWE-284",
-                    owasp_category="A07:2021",
-                    url=str(response.url),
-                    method="GET",
-                    evidence=f"Indicator: {indicator}",
-                    remediation="Restrict admin panel access to internal networks or VPN.",
-                ))
+                findings.append(
+                    Finding(
+                        title="Admin Panel Exposed",
+                        description=(
+                            f"{description}. Exposed admin panels are "
+                            "prime targets for brute-force attacks."
+                        ),
+                        severity=Severity.MEDIUM,
+                        cwe_id="CWE-284",
+                        owasp_category="A07:2021",
+                        url=str(response.url),
+                        method="GET",
+                        evidence=f"Indicator: {indicator}",
+                        remediation="Restrict admin panel access to internal networks or VPN.",
+                    )
+                )
                 break
 
         return findings
@@ -306,21 +334,23 @@ class ConfigScanner(BaseScanner):
         acac = response.headers.get("access-control-allow-credentials", "")
 
         if acao == "*" and acac.lower() == "true":
-            findings.append(Finding(
-                title="CORS Wildcard with Credentials",
-                description=(
-                    "Access-Control-Allow-Origin is '*' with credentials enabled. "
-                    "This is a critical misconfiguration allowing credential theft."
-                ),
-                severity=Severity.HIGH,
-                cvss_score=8.0,
-                cwe_id="CWE-942",
-                owasp_category="A05:2021",
-                url=str(response.url),
-                method="GET",
-                evidence=f"ACAO: {acao}, ACAC: {acac}",
-                remediation="Restrict CORS origins and never use '*' with credentials.",
-            ))
+            findings.append(
+                Finding(
+                    title="CORS Wildcard with Credentials",
+                    description=(
+                        "Access-Control-Allow-Origin is '*' with credentials enabled. "
+                        "This is a critical misconfiguration allowing credential theft."
+                    ),
+                    severity=Severity.HIGH,
+                    cvss_score=8.0,
+                    cwe_id="CWE-942",
+                    owasp_category="A05:2021",
+                    url=str(response.url),
+                    method="GET",
+                    evidence=f"ACAO: {acao}, ACAC: {acac}",
+                    remediation="Restrict CORS origins and never use '*' with credentials.",
+                )
+            )
 
         return findings
 
@@ -338,19 +368,21 @@ class ConfigScanner(BaseScanner):
 
             for indicator in sensitive_indicators:
                 if indicator in str(response.url).lower() or indicator in body[:1000]:
-                    findings.append(Finding(
-                        title="Missing Cache-Control on Sensitive Page",
-                        description=(
-                            "This page contains sensitive content but lacks Cache-Control "
-                            "headers. Browsers may cache sensitive data."
-                        ),
-                        severity=Severity.LOW,
-                        cwe_id="CWE-525",
-                        owasp_category="A05:2021",
-                        url=str(response.url),
-                        method="GET",
-                        remediation="Add 'Cache-Control: no-store' to sensitive pages.",
-                    ))
+                    findings.append(
+                        Finding(
+                            title="Missing Cache-Control on Sensitive Page",
+                            description=(
+                                "This page contains sensitive content but lacks Cache-Control "
+                                "headers. Browsers may cache sensitive data."
+                            ),
+                            severity=Severity.LOW,
+                            cwe_id="CWE-525",
+                            owasp_category="A05:2021",
+                            url=str(response.url),
+                            method="GET",
+                            remediation="Add 'Cache-Control: no-store' to sensitive pages.",
+                        )
+                    )
                     break
 
         return findings
@@ -385,22 +417,24 @@ class ConfigScanner(BaseScanner):
                     # Verify it's actual content, not a custom 404
                     body = response.text.lower()
                     if len(response.text) > 100 and not ("not found" in body or "404" in body):
-                        findings.append(Finding(
-                            title=f"Sensitive Path Exposed: {name}",
-                            description=(
-                                f"{name} is accessible at {path}. "
-                                "This may expose sensitive configuration or debugging information."
-                            ),
-                            severity=severity,
-                            cvss_score=cvss,
-                            cwe_id="CWE-200",
-                            owasp_category="A05:2021",
-                            url=url,
-                            endpoint=path,
-                            method="GET",
-                            evidence=response.text[:300],
-                            remediation=f"Restrict access to {path} or remove it entirely.",
-                        ))
+                        findings.append(
+                            Finding(
+                                title=f"Sensitive Path Exposed: {name}",
+                                description=(
+                                    f"{name} is accessible at {path}. "
+                                    "This may expose sensitive configuration or debugging information."
+                                ),
+                                severity=severity,
+                                cvss_score=cvss,
+                                cwe_id="CWE-200",
+                                owasp_category="A05:2021",
+                                url=url,
+                                endpoint=path,
+                                method="GET",
+                                evidence=response.text[:300],
+                                remediation=f"Restrict access to {path} or remove it entirely.",
+                            )
+                        )
 
             except httpx.RequestError:
                 continue

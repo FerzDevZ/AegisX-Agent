@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-06
+
 ### Added
+- **Continuous monitoring** (`aegisx monitor`): re-scans a target on a configurable interval and alerts only on **new** findings, diffed against the previous cycle via the scan-history database. The first cycle establishes a silent baseline (no backlog spam); failed cycles are logged and skipped without killing the monitor; `--cycles N` bounds the run, otherwise it patrols until Ctrl-C
+- **Webhook notifications** (`--notify` / `AEGISX_NOTIFY_WEBHOOK`): push a findings summary to Slack, Discord, or any generic `{"text": …}` endpoint after a `scan` or a new-finding alert during `monitor`. Slack/Discord format is auto-detected from the URL; delivery is strictly best-effort — a notification failure is logged and never fails the scan. 16 new tests (332 total)
 - **Eval scenarios for the probing tools** (8 builtin scenarios total): `ssrf_probing_flow`, `auth_probing_flow`, and `ssrf_probe_scope_blocked` keep the probe_ssrf/probe_auth tool flows and their scope enforcement regression-tested
 
 - **AI agent auth probing** (`probe_auth` tool, 9 tools total): the Brain mines in-scope pages for JWTs, session identifiers, and OAuth links, receives decoded token facts (algorithm, expiry, sensitive claim names, OAuth `state`/`redirect_uri` presence) to reason about, and auto-registers findings (CWE-347/613/312/598/352/601); methodology prompt gains a dedicated AUTH step

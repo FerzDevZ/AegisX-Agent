@@ -79,38 +79,42 @@ async def check_security_headers(config: AegisxConfig) -> list[Finding]:
 
             # WAF/CDN challenge detection
             if headers.get("x-vercel-mitigated") == "challenge":
-                findings.append(Finding(
-                    title="WAF/CDN Challenge Detected",
-                    description=(
-                        "Vercel is serving a challenge page (WAF). Security headers may be "
-                        "missing from the challenge response but present on the real page."
-                    ),
-                    severity=Severity.INFO,
-                    cwe_id="CWE-16",
-                    owasp_category="A05:2021",
-                    url=config.target_url,
-                    endpoint="/",
-                    method="GET",
-                    evidence=f"x-vercel-mitigated: {headers.get('x-vercel-mitigated')}",
-                    remediation="Configure WAF to allow security scanner User-Agents.",
-                ))
+                findings.append(
+                    Finding(
+                        title="WAF/CDN Challenge Detected",
+                        description=(
+                            "Vercel is serving a challenge page (WAF). Security headers may be "
+                            "missing from the challenge response but present on the real page."
+                        ),
+                        severity=Severity.INFO,
+                        cwe_id="CWE-16",
+                        owasp_category="A05:2021",
+                        url=config.target_url,
+                        endpoint="/",
+                        method="GET",
+                        evidence=f"x-vercel-mitigated: {headers.get('x-vercel-mitigated')}",
+                        remediation="Configure WAF to allow security scanner User-Agents.",
+                    )
+                )
                 return findings
 
             # Check each required header
             for check in REQUIRED_HEADERS:
                 if check["header"] not in headers:
-                    findings.append(Finding(
-                        title=check["title"],
-                        description=check["description"],
-                        severity=_severity(check["severity"]),
-                        cwe_id=check["cwe"],
-                        owasp_category="A05:2021",
-                        url=config.target_url,
-                        endpoint="/",
-                        method="GET",
-                        remediation=f"Add the {check['header']} header to all HTTP responses.",
-                        references=["https://owasp.org/www-project-secure-headers/"],
-                    ))
+                    findings.append(
+                        Finding(
+                            title=check["title"],
+                            description=check["description"],
+                            severity=_severity(check["severity"]),
+                            cwe_id=check["cwe"],
+                            owasp_category="A05:2021",
+                            url=config.target_url,
+                            endpoint="/",
+                            method="GET",
+                            remediation=f"Add the {check['header']} header to all HTTP responses.",
+                            references=["https://owasp.org/www-project-secure-headers/"],
+                        )
+                    )
 
     except (httpx.RequestError, httpx.TimeoutException) as exc:
         logger.warning("Security header check failed: %s", exc)
@@ -135,39 +139,49 @@ async def check_cors(config: AegisxConfig) -> list[Finding]:
             acac = response.headers.get("access-control-allow-credentials", "")
 
             if acao == "*":
-                findings.append(Finding(
-                    title="Wildcard CORS Configuration",
-                    description=(
-                        "Access-Control-Allow-Origin is set to '*', allowing any origin "
-                        "to make cross-origin requests. This can lead to data theft."
-                    ),
-                    severity=Severity.MEDIUM,
-                    cvss_score=5.0,
-                    cwe_id="CWE-942",
-                    owasp_category="A05:2021",
-                    url=config.target_url,
-                    method="GET",
-                    evidence=f"Access-Control-Allow-Origin: {acao}",
-                    remediation="Restrict CORS to specific trusted origins. Never use '*' with credentials.",
-                    references=["https://owasp.org/www-community/attacks/CORS_OriginHeaderScrutiny"],
-                ))
+                findings.append(
+                    Finding(
+                        title="Wildcard CORS Configuration",
+                        description=(
+                            "Access-Control-Allow-Origin is set to '*', allowing any origin "
+                            "to make cross-origin requests. This can lead to data theft."
+                        ),
+                        severity=Severity.MEDIUM,
+                        cvss_score=5.0,
+                        cwe_id="CWE-942",
+                        owasp_category="A05:2021",
+                        url=config.target_url,
+                        method="GET",
+                        evidence=f"Access-Control-Allow-Origin: {acao}",
+                        remediation="Restrict CORS to specific trusted origins. Never use '*' with credentials.",
+                        references=[
+                            "https://owasp.org/www-community/attacks/CORS_OriginHeaderScrutiny"
+                        ],
+                    )
+                )
             elif acao == "https://evil-attacker.com":
-                findings.append(Finding(
-                    title="CORS Origin Reflection",
-                    description=(
-                        "The server reflects the attacker-controlled Origin header back "
-                        "in Access-Control-Allow-Origin, bypassing CORS protections. "
-                        + ("With credentials, this allows full account takeover." if acac == "true" else "")
-                    ),
-                    severity=Severity.HIGH if acac == "true" else Severity.MEDIUM,
-                    cvss_score=8.1 if acac == "true" else 6.0,
-                    cwe_id="CWE-942",
-                    owasp_category="A05:2021",
-                    url=config.target_url,
-                    method="GET",
-                    evidence=f"ACAO: {acao}, ACAC: {acac}",
-                    remediation="Validate Origin against a whitelist before reflecting it.",
-                ))
+                findings.append(
+                    Finding(
+                        title="CORS Origin Reflection",
+                        description=(
+                            "The server reflects the attacker-controlled Origin header back "
+                            "in Access-Control-Allow-Origin, bypassing CORS protections. "
+                            + (
+                                "With credentials, this allows full account takeover."
+                                if acac == "true"
+                                else ""
+                            )
+                        ),
+                        severity=Severity.HIGH if acac == "true" else Severity.MEDIUM,
+                        cvss_score=8.1 if acac == "true" else 6.0,
+                        cwe_id="CWE-942",
+                        owasp_category="A05:2021",
+                        url=config.target_url,
+                        method="GET",
+                        evidence=f"ACAO: {acao}, ACAC: {acac}",
+                        remediation="Validate Origin against a whitelist before reflecting it.",
+                    )
+                )
 
             # Test 2: Null origin
             response2 = await client.get(
@@ -179,21 +193,23 @@ async def check_cors(config: AegisxConfig) -> list[Finding]:
             )
             acao2 = response2.headers.get("access-control-allow-origin", "")
             if acao2 == "null":
-                findings.append(Finding(
-                    title="CORS Null Origin Allowed",
-                    description=(
-                        "The server accepts 'null' as a valid Origin. Attackers can "
-                        "exploit this using sandboxed iframes."
-                    ),
-                    severity=Severity.MEDIUM,
-                    cvss_score=5.0,
-                    cwe_id="CWE-942",
-                    owasp_category="A05:2021",
-                    url=config.target_url,
-                    method="GET",
-                    evidence=f"Access-Control-Allow-Origin: {acao2}",
-                    remediation="Reject 'null' origin in CORS configuration.",
-                ))
+                findings.append(
+                    Finding(
+                        title="CORS Null Origin Allowed",
+                        description=(
+                            "The server accepts 'null' as a valid Origin. Attackers can "
+                            "exploit this using sandboxed iframes."
+                        ),
+                        severity=Severity.MEDIUM,
+                        cvss_score=5.0,
+                        cwe_id="CWE-942",
+                        owasp_category="A05:2021",
+                        url=config.target_url,
+                        method="GET",
+                        evidence=f"Access-Control-Allow-Origin: {acao2}",
+                        remediation="Reject 'null' origin in CORS configuration.",
+                    )
+                )
 
     except (httpx.RequestError, httpx.TimeoutException) as exc:
         logger.warning("CORS check failed: %s", exc)
@@ -213,69 +229,87 @@ async def check_info_disclosure(config: AegisxConfig) -> list[Finding]:
             # Server header version
             server = headers.get("server", "")
             if server and any(c.isdigit() for c in server):
-                findings.append(Finding(
-                    title="Server Version Disclosure",
-                    description=f"The Server header reveals version information: '{server}'. This helps attackers identify specific vulnerabilities.",
-                    severity=Severity.LOW,
-                    cwe_id="CWE-200",
-                    owasp_category="A05:2021",
-                    url=config.target_url,
-                    method="GET",
-                    evidence=f"Server: {server}",
-                    remediation="Remove or obfuscate the Server header version information.",
-                ))
+                findings.append(
+                    Finding(
+                        title="Server Version Disclosure",
+                        description=f"The Server header reveals version information: '{server}'. This helps attackers identify specific vulnerabilities.",
+                        severity=Severity.LOW,
+                        cwe_id="CWE-200",
+                        owasp_category="A05:2021",
+                        url=config.target_url,
+                        method="GET",
+                        evidence=f"Server: {server}",
+                        remediation="Remove or obfuscate the Server header version information.",
+                    )
+                )
 
             # X-Powered-By
             powered_by = headers.get("x-powered-by", "")
             if powered_by:
-                findings.append(Finding(
-                    title="X-Powered-By Header Disclosure",
-                    description=f"The X-Powered-By header reveals: '{powered_by}'. This exposes the technology stack to attackers.",
-                    severity=Severity.LOW,
-                    cwe_id="CWE-200",
-                    owasp_category="A05:2021",
-                    url=config.target_url,
-                    method="GET",
-                    evidence=f"X-Powered-By: {powered_by}",
-                    remediation="Remove the X-Powered-By header from production responses.",
-                ))
+                findings.append(
+                    Finding(
+                        title="X-Powered-By Header Disclosure",
+                        description=f"The X-Powered-By header reveals: '{powered_by}'. This exposes the technology stack to attackers.",
+                        severity=Severity.LOW,
+                        cwe_id="CWE-200",
+                        owasp_category="A05:2021",
+                        url=config.target_url,
+                        method="GET",
+                        evidence=f"X-Powered-By: {powered_by}",
+                        remediation="Remove the X-Powered-By header from production responses.",
+                    )
+                )
 
             # Source maps
             if "sourceMappingURL" in response.text:
-                findings.append(Finding(
-                    title="Source Map Exposed",
-                    description="A source map reference was found in the response. Source maps expose the original source code to attackers.",
-                    severity=Severity.MEDIUM,
-                    cwe_id="CWE-200",
-                    owasp_category="A05:2021",
-                    url=config.target_url,
-                    method="GET",
-                    evidence="sourceMappingURL found in response",
-                    remediation="Remove source maps from production builds.",
-                ))
+                findings.append(
+                    Finding(
+                        title="Source Map Exposed",
+                        description="A source map reference was found in the response. Source maps expose the original source code to attackers.",
+                        severity=Severity.MEDIUM,
+                        cwe_id="CWE-200",
+                        owasp_category="A05:2021",
+                        url=config.target_url,
+                        method="GET",
+                        evidence="sourceMappingURL found in response",
+                        remediation="Remove source maps from production builds.",
+                    )
+                )
 
             # HTML comments with sensitive keywords
             sensitive_patterns = [
-                "todo", "fixme", "hack", "bug", "password",
-                "secret", "key", "token", "admin", "debug",
-                "internal", "private", "backup",
+                "todo",
+                "fixme",
+                "hack",
+                "bug",
+                "password",
+                "secret",
+                "key",
+                "token",
+                "admin",
+                "debug",
+                "internal",
+                "private",
+                "backup",
             ]
             comments = re.findall(r"<!--(.*?)-->", response.text, re.DOTALL)
             for comment in comments:
                 comment_lower = comment.lower()
                 for pattern in sensitive_patterns:
                     if pattern in comment_lower:
-                        findings.append(Finding(
-                            title="Sensitive Information in HTML Comment",
-                            description=f"HTML comment contains sensitive keyword '{pattern}'. Comments may expose internal information.",
-                            severity=Severity.LOW,
-                            cwe_id="CWE-615",
-                            owasp_category="A05:2021",
-                            url=config.target_url,
-                            method="GET",
-                            evidence=comment.strip()[:200],
-                            remediation="Remove sensitive information from HTML comments.",
-                        ))
+                        findings.append(
+                            Finding(
+                                title="Sensitive Information in HTML Comment",
+                                description=f"HTML comment contains sensitive keyword '{pattern}'. Comments may expose internal information.",
+                                severity=Severity.LOW,
+                                cwe_id="CWE-615",
+                                owasp_category="A05:2021",
+                                url=config.target_url,
+                                method="GET",
+                                evidence=comment.strip()[:200],
+                                remediation="Remove sensitive information from HTML comments.",
+                            )
+                        )
                         break
 
     except (httpx.RequestError, httpx.TimeoutException) as exc:
@@ -294,23 +328,28 @@ async def check_http_methods(config: AegisxConfig) -> list[Finding]:
             allow = response.headers.get("allow", "").upper()
             dangerous = {"TRACE": "High", "DELETE": "Low", "PUT": "Low", "PATCH": "Low"}
 
-            for method, sev in dangerous.items():
+            for method in dangerous:
                 if method in allow:
-                    findings.append(Finding(
-                        title=f"HTTP Method Allowed: {method}",
-                        description=(
-                            f"The {method} HTTP method is enabled. "
-                            + ("TRACE can be used for cross-site tracing attacks." if method == "TRACE"
-                               else f"{method} may expose additional attack surface.")
-                        ),
-                        severity=Severity.HIGH if method == "TRACE" else Severity.LOW,
-                        cwe_id="CWE-16",
-                        owasp_category="A05:2021",
-                        url=config.target_url,
-                        method=method,
-                        evidence=f"Allow: {allow}",
-                        remediation=f"Disable the {method} method if not needed.",
-                    ))
+                    findings.append(
+                        Finding(
+                            title=f"HTTP Method Allowed: {method}",
+                            description=(
+                                f"The {method} HTTP method is enabled. "
+                                + (
+                                    "TRACE can be used for cross-site tracing attacks."
+                                    if method == "TRACE"
+                                    else f"{method} may expose additional attack surface."
+                                )
+                            ),
+                            severity=Severity.HIGH if method == "TRACE" else Severity.LOW,
+                            cwe_id="CWE-16",
+                            owasp_category="A05:2021",
+                            url=config.target_url,
+                            method=method,
+                            evidence=f"Allow: {allow}",
+                            remediation=f"Disable the {method} method if not needed.",
+                        )
+                    )
 
     except (httpx.RequestError, httpx.TimeoutException) as exc:
         logger.debug("HTTP methods check failed: %s", exc)

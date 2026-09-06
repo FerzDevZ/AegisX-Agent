@@ -34,7 +34,7 @@ INSTALL_DIR="${AEGISX_INSTALL_DIR:-$HOME/.aegisx}"
 VENV_DIR="${INSTALL_DIR}/.venv"
 BIN_DIR="${INSTALL_DIR}/bin"
 PYTHON_MIN_VERSION="3.12"
-AEGISX_VERSION="0.1.2"
+AEGISX_VERSION="0.2.0"
 
 # ─── Helpers ───────────────────────────────────────────────────
 print_banner() {

@@ -155,8 +155,18 @@ class ScanHistory:
             conn.close()
 
         keys = [
-            "scan_id", "timestamp", "target", "mode", "findings",
-            "critical", "high", "medium", "low", "info", "duration", "scanners",
+            "scan_id",
+            "timestamp",
+            "target",
+            "mode",
+            "findings",
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "info",
+            "duration",
+            "scanners",
         ]
         return [dict(zip(keys, row, strict=True)) for row in rows]
 
@@ -200,9 +210,7 @@ class ScanHistory:
             "new_scan": new_id,
             "new_findings": [f for k, f in new_map.items() if k not in old_map],
             "resolved_findings": [f for k, f in old_map.items() if k not in new_map],
-            "severity_delta": {
-                s: new.get(s, 0) - old.get(s, 0) for s in severity_fields
-            },
+            "severity_delta": {s: new.get(s, 0) - old.get(s, 0) for s in severity_fields},
         }
 
     def export_json(self, output_path: Path | str) -> Path:

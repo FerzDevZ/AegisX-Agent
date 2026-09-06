@@ -47,9 +47,7 @@ class TestHelpers:
         assert _params_with_urls("https://t.example.com/x?id=7&sort=asc") == []
 
     def test_build_probe_url_preserves_other_params(self):
-        out = _build_probe_url(
-            "https://t.example.com/x?a=1&b=2", "url", "https://probe.test/"
-        )
+        out = _build_probe_url("https://t.example.com/x?a=1&b=2", "url", "https://probe.test/")
         assert "a=1" in out and "b=2" in out and "url=" in out
 
 
@@ -67,9 +65,7 @@ class TestOpenRedirect:
                 302, headers={"Location": "https://aegisx-probe.example.com/redirect-test"}
             )
         )
-        finding = await check_open_redirect(
-            _config(), "https://test.example.com/login", "next"
-        )
+        finding = await check_open_redirect(_config(), "https://test.example.com/login", "next")
         assert finding is not None
         assert finding.cwe_id == "CWE-601"
         assert finding.parameter == "next"
@@ -82,9 +78,7 @@ class TestOpenRedirect:
         respx.get(url__startswith="https://test.example.com/").mock(
             return_value=httpx.Response(302, headers={"Location": "https://test.example.com/done"})
         )
-        finding = await check_open_redirect(
-            _config(), "https://test.example.com/login", "next"
-        )
+        finding = await check_open_redirect(_config(), "https://test.example.com/login", "next")
         assert finding is None
 
     @respx.mock
@@ -93,9 +87,7 @@ class TestOpenRedirect:
         respx.get(url__startswith="https://test.example.com/").mock(
             return_value=httpx.Response(200, text="ok")
         )
-        finding = await check_open_redirect(
-            _config(), "https://test.example.com/login", "next"
-        )
+        finding = await check_open_redirect(_config(), "https://test.example.com/login", "next")
         assert finding is None
 
     @respx.mock
@@ -104,9 +96,7 @@ class TestOpenRedirect:
         respx.get(url__startswith="https://test.example.com/").mock(
             side_effect=httpx.ConnectError("down")
         )
-        finding = await check_open_redirect(
-            _config(), "https://test.example.com/", "next"
-        )
+        finding = await check_open_redirect(_config(), "https://test.example.com/", "next")
         assert finding is None
 
 
@@ -120,13 +110,9 @@ class TestBlindSSRF:
     @pytest.mark.asyncio
     async def test_detects_connection_refused_reflection(self):
         respx.get(url__startswith="https://test.example.com/").mock(
-            return_value=httpx.Response(
-                500, text="Error: connection refused to 127.0.0.1:80"
-            )
+            return_value=httpx.Response(500, text="Error: connection refused to 127.0.0.1:80")
         )
-        finding = await check_blind_ssrf(
-            _config(), "https://test.example.com/fetch", "url"
-        )
+        finding = await check_blind_ssrf(_config(), "https://test.example.com/fetch", "url")
         assert finding is not None
         assert finding.cwe_id == "CWE-918"
         assert finding.severity.value == "high"
@@ -137,9 +123,7 @@ class TestBlindSSRF:
         respx.get(url__startswith="https://test.example.com/").mock(
             return_value=httpx.Response(200, text="root:x:0:0:root:/root:/bin/bash")
         )
-        finding = await check_blind_ssrf(
-            _config(), "https://test.example.com/fetch", "url"
-        )
+        finding = await check_blind_ssrf(_config(), "https://test.example.com/fetch", "url")
         assert finding is not None
 
     @respx.mock
@@ -148,9 +132,7 @@ class TestBlindSSRF:
         respx.get(url__startswith="https://test.example.com/").mock(
             return_value=httpx.Response(200, text="<html>Welcome</html>")
         )
-        finding = await check_blind_ssrf(
-            _config(), "https://test.example.com/fetch", "url"
-        )
+        finding = await check_blind_ssrf(_config(), "https://test.example.com/fetch", "url")
         assert finding is None
 
 
@@ -163,9 +145,7 @@ class TestSSRFScanner:
     @respx.mock
     @pytest.mark.asyncio
     async def test_scan_finds_open_redirect_end_to_end(self):
-        respx.get(url__startswith="https://test.example.com/").mock(
-            side_effect=_routing_responder
-        )
+        respx.get(url__startswith="https://test.example.com/").mock(side_effect=_routing_responder)
         config = _config()
         context = ScanContext(config=config, target_url=config.target_url)
         scanner = SSRFScanner(context)
@@ -201,16 +181,14 @@ def _routing_responder(request: httpx.Request) -> httpx.Response:
     """Crawl-safe responder: normal pages for crawls, redirect for probes."""
     url = str(request.url)
     # Any request carrying our probe value on a URL-ish param gets redirected
-    if any(
-        f"{p}=" in url for p in ("next", "redirect", "url", "goto", "target")
-    ) and "aegisx-probe" in url:
+    if (
+        any(f"{p}=" in url for p in ("next", "redirect", "url", "goto", "target"))
+        and "aegisx-probe" in url
+    ):
         return httpx.Response(
             302, headers={"Location": "https://aegisx-probe.example.com/redirect-test"}
         )
     return httpx.Response(
         200,
-        text=(
-            "<html><a href='/about'>About</a>"
-            "<a href='/login?next=/dashboard'>Login</a></html>"
-        ),
+        text=("<html><a href='/about'>About</a><a href='/login?next=/dashboard'>Login</a></html>"),
     )

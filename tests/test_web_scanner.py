@@ -4,33 +4,33 @@ from __future__ import annotations
 
 import re
 
-import pytest
 import httpx
+import pytest
 import respx
 
 from aegisx.core.config import AegisxConfig, ScanMode
 from aegisx.core.context import ScanContext, Severity
-from aegisx.scanners.web.crawler import crawl_pages, _is_in_scope
-from aegisx.scanners.web.header_scanner import (
-    check_security_headers,
-    check_cors,
-    check_info_disclosure,
-    check_http_methods,
-    REQUIRED_HEADERS,
-)
-from aegisx.scanners.web.cookie_scanner import check_cookie_security
+from aegisx.scanners.web.api_scanner import check_api_endpoints
 from aegisx.scanners.web.auth_scanner import check_auth_bypass
+from aegisx.scanners.web.cookie_scanner import check_cookie_security
+from aegisx.scanners.web.crawler import _is_in_scope, crawl_pages
+from aegisx.scanners.web.header_scanner import (
+    REQUIRED_HEADERS,
+    check_cors,
+    check_http_methods,
+    check_info_disclosure,
+    check_security_headers,
+)
 from aegisx.scanners.web.param_scanner import (
+    _extract_forms,
+    check_path_traversal,
     check_sqli,
     check_xss,
-    check_path_traversal,
-    _extract_forms,
 )
-from aegisx.scanners.web.api_scanner import check_api_endpoints
 from aegisx.scanners.web_scanner import WebScanner
 
-
 # ── Fixtures ───────────────────────────────────────────────────
+
 
 @pytest.fixture
 def config() -> AegisxConfig:
@@ -48,6 +48,7 @@ def context(config: AegisxConfig) -> ScanContext:
 
 
 # ── Scope Enforcement ──────────────────────────────────────────
+
 
 class TestScopeEnforcement:
     def test_same_domain_in_scope(self, config):
@@ -82,11 +83,29 @@ class TestScopeEnforcement:
 # ── Crawler ────────────────────────────────────────────────────
 
 COMMON_MOCK_PATHS = [
-    "/login", "/admin", "/dashboard", "/api", "/search",
-    "/register", "/signup", "/signin", "/panel", "/settings",
-    "/services", "/profile", "/account", "/api/v1", "/graphql",
-    "/wp-admin", "/wp-login.php", "/swagger", "/docs", "/api-docs",
-    "/.env", "/config", "/debug",
+    "/login",
+    "/admin",
+    "/dashboard",
+    "/api",
+    "/search",
+    "/register",
+    "/signup",
+    "/signin",
+    "/panel",
+    "/settings",
+    "/services",
+    "/profile",
+    "/account",
+    "/api/v1",
+    "/graphql",
+    "/wp-admin",
+    "/wp-login.php",
+    "/swagger",
+    "/docs",
+    "/api-docs",
+    "/.env",
+    "/config",
+    "/debug",
 ]
 
 
@@ -95,7 +114,9 @@ class TestCrawler:
     @pytest.mark.asyncio
     async def test_crawl_discovers_links(self, config):
         respx.get("https://test.example.com").mock(
-            return_value=httpx.Response(200, text='<a href="/about">About</a><a href="/contact">Contact</a>')
+            return_value=httpx.Response(
+                200, text='<a href="/about">About</a><a href="/contact">Contact</a>'
+            )
         )
         respx.get("https://test.example.com/about").mock(return_value=httpx.Response(200))
         respx.get("https://test.example.com/contact").mock(return_value=httpx.Response(200))
@@ -120,6 +141,7 @@ class TestCrawler:
 
 
 # ── Header Scanner ─────────────────────────────────────────────
+
 
 class TestHeaderScanner:
     @respx.mock
@@ -206,6 +228,7 @@ class TestHeaderScanner:
 
 # ── Cookie Scanner ─────────────────────────────────────────────
 
+
 class TestCookieScanner:
     @respx.mock
     @pytest.mark.asyncio
@@ -241,6 +264,7 @@ class TestCookieScanner:
 
 # ── Auth Scanner ───────────────────────────────────────────────
 
+
 class TestAuthScanner:
     @respx.mock
     @pytest.mark.asyncio
@@ -268,6 +292,7 @@ class TestAuthScanner:
 
 # ── Param Scanner ──────────────────────────────────────────────
 
+
 class TestParamScanner:
     @respx.mock
     @pytest.mark.asyncio
@@ -280,9 +305,7 @@ class TestParamScanner:
             # Return SQL error when payload contains URL-encoded single quote
             # SQLi payloads are URL-encoded: ' becomes %27
             if "%27" in url:
-                return httpx.Response(
-                    200, text="You have an error in your SQL syntax near line 1"
-                )
+                return httpx.Response(200, text="You have an error in your SQL syntax near line 1")
             return httpx.Response(200, text="normal page")
 
         route = respx.route(method="GET", url=_re.compile(r"https://test\.example\.com/.*"))
@@ -299,7 +322,7 @@ class TestParamScanner:
         def _xss_responder(request: httpx.Request) -> httpx.Response:
             url = str(request.url)
             if "%3Cscript%3E" in url or "<script>" in url:
-                return httpx.Response(200, text='<div><script>alert(1)</script></div>')
+                return httpx.Response(200, text="<div><script>alert(1)</script></div>")
             return httpx.Response(200, text="normal page")
 
         route.side_effect = _xss_responder
@@ -318,12 +341,12 @@ class TestParamScanner:
         assert any("Path Traversal" in f.title for f in findings)
 
     def test_extract_forms(self):
-        html = '''
+        html = """
         <form action="/login" method="post">
             <input name="username" type="text">
             <input name="password" type="password">
         </form>
-        '''
+        """
         forms = _extract_forms(html, "https://test.example.com")
         assert len(forms) == 1
         url, params = forms[0]
@@ -335,12 +358,29 @@ class TestParamScanner:
 # ── API Scanner ────────────────────────────────────────────────
 
 ALL_API_PATHS = [
-    "/api", "/api/v1", "/api/v2", "/graphql",
-    "/login", "/register", "/signup", "/signin",
-    "/admin", "/dashboard", "/panel",
-    "/search", "/query", "/upload", "/files",
-    "/wp-admin", "/wp-login.php", "/.env", "/config",
-    "/debug", "/swagger", "/docs", "/api-docs",
+    "/api",
+    "/api/v1",
+    "/api/v2",
+    "/graphql",
+    "/login",
+    "/register",
+    "/signup",
+    "/signin",
+    "/admin",
+    "/dashboard",
+    "/panel",
+    "/search",
+    "/query",
+    "/upload",
+    "/files",
+    "/wp-admin",
+    "/wp-login.php",
+    "/.env",
+    "/config",
+    "/debug",
+    "/swagger",
+    "/docs",
+    "/api-docs",
 ]
 
 
@@ -363,7 +403,10 @@ class TestApiScanner:
         def _api_responder(request: httpx.Request) -> httpx.Response:
             path = request.url.path
             if path == "/graphql":
-                return httpx.Response(200, text='{"data": {"__schema": {"queryType": {"name": "Query"}}, "graphql": true}}')
+                return httpx.Response(
+                    200,
+                    text='{"data": {"__schema": {"queryType": {"name": "Query"}}, "graphql": true}}',
+                )
             return httpx.Response(404)
 
         route = respx.route(method="GET", url=re.compile(r"https://test\.example\.com/.*"))
@@ -373,6 +416,7 @@ class TestApiScanner:
 
 
 # ── WebScanner Orchestrator ────────────────────────────────────
+
 
 class TestWebScanner:
     def test_init(self, context):

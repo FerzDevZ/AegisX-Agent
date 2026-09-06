@@ -163,7 +163,15 @@ class AegisxOrchestrator:
         from aegisx.scanners.ssrf_scanner import SSRFScanner
         from aegisx.scanners.web_scanner import WebScanner
 
-        for cls in [WebScanner, SecretScanner, ConfigScanner, DependencyScanner, NetworkScanner, SSRFScanner, AuthScanner]:
+        for cls in [
+            WebScanner,
+            SecretScanner,
+            ConfigScanner,
+            DependencyScanner,
+            NetworkScanner,
+            SSRFScanner,
+            AuthScanner,
+        ]:
             self.plugin_manager.register_scanner(cls.name, cls)
         for cls in [MarkdownReporter, JSONReporter, SARIFReporter]:
             self.plugin_manager.register_reporter(cls.format_name, cls)
@@ -179,6 +187,7 @@ class AegisxOrchestrator:
 
         # Register HTML reporter
         from aegisx.reporters.html_reporter import HTMLReporter
+
         self.plugin_manager.register_reporter(HTMLReporter.format_name, HTMLReporter)
 
     def _load_plugins(self) -> None:
@@ -261,9 +270,7 @@ class AegisxOrchestrator:
             except TimeoutError:
                 logger.warning("[yellow]SCAN[/] Phase 2 timed out after %ds", phase_timeout)
                 results = []
-            total_findings = sum(
-                len(r) for r in results if isinstance(r, list)
-            )
+            total_findings = sum(len(r) for r in results if isinstance(r, list))
             logger.info(
                 "[bold green]SCAN[/] Phase 2 complete: [bold]%d[/] total findings",
                 total_findings,
@@ -326,7 +333,9 @@ class AegisxOrchestrator:
             reporter_cls = reporter_map.get(self.config.report_format, MarkdownReporter)
             reporter = reporter_cls(context=self.context)
             filepath = reporter.save(output_dir)
-            logger.info("[green]REPORT[/] Generated %s: %s", self.config.report_format.value, filepath)
+            logger.info(
+                "[green]REPORT[/] Generated %s: %s", self.config.report_format.value, filepath
+            )
 
         # Print summary
         self._print_summary(stats)
@@ -389,9 +398,15 @@ class AegisxOrchestrator:
         table.add_row("Duration", f"{stats.scan_duration_seconds:.1f}s")
         table.add_row("Scanners Used", ", ".join(stats.scanners_used) or "None")
         table.add_row("─" * 20, "─" * 20)
-        table.add_row("🔴 Critical", str(stats.critical_count), style="red" if stats.critical_count else "")
-        table.add_row("🟠 High", str(stats.high_count), style="dark_orange" if stats.high_count else "")
-        table.add_row("🟡 Medium", str(stats.medium_count), style="yellow" if stats.medium_count else "")
+        table.add_row(
+            "🔴 Critical", str(stats.critical_count), style="red" if stats.critical_count else ""
+        )
+        table.add_row(
+            "🟠 High", str(stats.high_count), style="dark_orange" if stats.high_count else ""
+        )
+        table.add_row(
+            "🟡 Medium", str(stats.medium_count), style="yellow" if stats.medium_count else ""
+        )
         table.add_row("🔵 Low", str(stats.low_count), style="blue" if stats.low_count else "")
         table.add_row("⚪ Info", str(stats.info_count))
         table.add_row("─" * 20, "─" * 20)

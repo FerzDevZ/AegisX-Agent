@@ -112,7 +112,8 @@ class AIProvider:
                 # verify=False is intentional: some self-hosted gateways use
                 # self-signed certs. Traffic carries no secrets beyond the key.
                 async with httpx.AsyncClient(
-                    timeout=self.config.timeout_seconds, verify=False  # noqa: S501
+                    timeout=self.config.timeout_seconds,
+                    verify=False,  # noqa: S501
                 ) as client:
                     resp = await client.post(url, json=payload, headers=self._headers())
 
@@ -121,7 +122,10 @@ class AIProvider:
                 if resp.status_code in (429, 500, 502, 503, 504) and attempt < max_retries:
                     logger.warning(
                         "AI endpoint %s (attempt %d/%d) — retrying in %.0fs",
-                        resp.status_code, attempt, max_retries, backoff,
+                        resp.status_code,
+                        attempt,
+                        max_retries,
+                        backoff,
                     )
                     await _asyncio.sleep(backoff)
                     backoff *= 2
@@ -132,7 +136,10 @@ class AIProvider:
                 if attempt < max_retries:
                     logger.warning(
                         "AI endpoint unreachable (%s, attempt %d/%d) — retrying in %.0fs",
-                        type(exc).__name__, attempt, max_retries, backoff,
+                        type(exc).__name__,
+                        attempt,
+                        max_retries,
+                        backoff,
                     )
                     await _asyncio.sleep(backoff)
                     backoff *= 2
@@ -183,9 +190,7 @@ class AIProvider:
         if resp.status_code == 429:
             raise AIProviderError("AI endpoint rate limited us (HTTP 429) — retry later")
         if resp.status_code >= 400:
-            raise AIProviderError(
-                f"AI endpoint error HTTP {resp.status_code}: {resp.text[:200]}"
-            )
+            raise AIProviderError(f"AI endpoint error HTTP {resp.status_code}: {resp.text[:200]}")
 
         try:
             data = self._parse_response_body(resp.text)
@@ -257,16 +262,16 @@ class AIProvider:
         usage: dict[str, int] = {}
 
         try:
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds, verify=False  # noqa: S501
-            ) as client, client.stream(
-                "POST", url, json=payload, headers=self._headers()
-            ) as resp:
+            async with (
+                httpx.AsyncClient(
+                    timeout=self.config.timeout_seconds,
+                    verify=False,  # noqa: S501
+                ) as client,
+                client.stream("POST", url, json=payload, headers=self._headers()) as resp,
+            ):
                 if resp.status_code != 200:
                     body = (await resp.aread()).decode(errors="replace")
-                    logger.debug(
-                        "Stream failed HTTP %d: %s", resp.status_code, body[:200]
-                    )
+                    logger.debug("Stream failed HTTP %d: %s", resp.status_code, body[:200])
                     return None
 
                 async for line in resp.aiter_lines():
@@ -301,9 +306,7 @@ class AIProvider:
                                 logger.debug("on_delta callback raised", exc_info=True)
                     for tc in delta.get("tool_calls") or []:
                         idx = int(tc.get("index", 0))
-                        slot = tc_acc.setdefault(
-                            idx, {"id": "", "name": "", "args": ""}
-                        )
+                        slot = tc_acc.setdefault(idx, {"id": "", "name": "", "args": ""})
                         if tc.get("id"):
                             slot["id"] = tc["id"]
                         fn = tc.get("function") or {}

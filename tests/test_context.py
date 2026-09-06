@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from aegisx.core.config import AegisxConfig, Severity
 from aegisx.core.context import (
     ExploitResult,
@@ -140,12 +139,14 @@ class TestScanContext:
         assert context.finished_at != ""
 
     def test_to_dict(self, context: ScanContext) -> None:
-        context.add_finding(Finding(
-            title="SQLi",
-            severity=Severity.CRITICAL,
-            cwe_id="CWE-89",
-            scanner_name="web",
-        ))
+        context.add_finding(
+            Finding(
+                title="SQLi",
+                severity=Severity.CRITICAL,
+                cwe_id="CWE-89",
+                scanner_name="web",
+            )
+        )
         context.finish()
 
         data = context.to_dict()

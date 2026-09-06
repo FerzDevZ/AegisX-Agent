@@ -7,7 +7,7 @@ All security-sensitive values (API keys, credentials) come from environment only
 from __future__ import annotations
 
 import os
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,7 @@ from pydantic_settings import (
 )
 
 
-class ScanMode(str, Enum):
+class ScanMode(StrEnum):
     """Scan intensity modes."""
 
     PASSIVE = "passive"  # Recon + fingerprinting only, no active probing
@@ -28,7 +28,7 @@ class ScanMode(str, Enum):
     STEALTH = "stealth"  # Slow, low-profile scan to avoid detection
 
 
-class ReportFormat(str, Enum):
+class ReportFormat(StrEnum):
     """Available report output formats."""
 
     MARKDOWN = "markdown"
@@ -38,7 +38,7 @@ class ReportFormat(str, Enum):
     ALL = "all"
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """Vulnerability severity levels (CVSS-aligned)."""
 
     CRITICAL = "critical"
@@ -99,9 +99,7 @@ class AegisxConfig(BaseSettings):
         default=False,
         description="Enable exploit verification (requires explicit consent)",
     )
-    sandbox_enabled: bool = Field(
-        default=True, description="Run exploits in Docker sandbox"
-    )
+    sandbox_enabled: bool = Field(default=True, description="Run exploits in Docker sandbox")
     sandbox_image: str = Field(
         default="aegisx-sandbox:latest", description="Docker image for sandbox"
     )
@@ -110,28 +108,24 @@ class AegisxConfig(BaseSettings):
     report_format: ReportFormat = Field(
         default=ReportFormat.MARKDOWN, description="Output report format"
     )
-    report_output: Path = Field(
-        default=Path("reports/"), description="Report output directory"
-    )
+    report_output: Path = Field(default=Path("reports/"), description="Report output directory")
 
     # --- Authentication (for target-specific auth) ---
     auth_token: str = Field(default="", description="Auth token for target (optional)")
-    auth_header: str = Field(
-        default="Authorization", description="Auth header name"
-    )
+    auth_header: str = Field(default="Authorization", description="Auth header name")
     cookies: dict[str, str] = Field(
         default_factory=dict, description="Cookies to include in requests"
     )
 
     # --- Proxy Settings ---
     proxy: str = Field(
-        default="", description="Proxy URL for routing requests (e.g. http://127.0.0.1:8080 for Burp/ZAP)"
+        default="",
+        description="Proxy URL for routing requests (e.g. http://127.0.0.1:8080 for Burp/ZAP)",
     )
 
     # --- Request Limits ---
     max_response_size: int = Field(
-        default=5_000_000, ge=100_000, le=50_000_000,
-        description="Max response body size in bytes"
+        default=5_000_000, ge=100_000, le=50_000_000, description="Max response body size in bytes"
     )
 
     # --- Plugin System ---
@@ -162,15 +156,21 @@ class AegisxConfig(BaseSettings):
         description="Model name (overrides preset default)",
     )
     ai_max_iterations: int = Field(
-        default=25, ge=1, le=100,
+        default=25,
+        ge=1,
+        le=100,
         description="Max agent loop iterations per run",
     )
     ai_max_tokens: int = Field(
-        default=4_000, ge=256, le=32_000,
+        default=4_000,
+        ge=256,
+        le=32_000,
         description="Max tokens per LLM completion",
     )
     ai_temperature: float = Field(
-        default=0.2, ge=0.0, le=2.0,
+        default=0.2,
+        ge=0.0,
+        le=2.0,
         description="LLM temperature (low = deterministic tool use)",
     )
 
@@ -182,9 +182,7 @@ class AegisxConfig(BaseSettings):
             if not entry.strip():
                 continue
             if entry.startswith(("http://", "https://")):
-                raise ValueError(
-                    f"Scope entries should be domains, not full URLs: {entry}"
-                )
+                raise ValueError(f"Scope entries should be domains, not full URLs: {entry}")
         return v
 
     def resolve_ai_endpoint(self) -> tuple[str, str, str]:
@@ -198,8 +196,16 @@ class AegisxConfig(BaseSettings):
             "custom": ("", "AEGISX_AI_API_KEY", ""),
             "deepseek": ("https://api.deepseek.com/v1", "AEGISX_AI_API_KEY", "deepseek-chat"),
             "openai": ("https://api.openai.com/v1", "AEGISX_AI_API_KEY", "gpt-4o-mini"),
-            "groq": ("https://api.groq.com/openai/v1", "AEGISX_AI_API_KEY", "llama-3.3-70b-versatile"),
-            "openrouter": ("https://openrouter.ai/api/v1", "AEGISX_AI_API_KEY", "openai/gpt-4o-mini"),
+            "groq": (
+                "https://api.groq.com/openai/v1",
+                "AEGISX_AI_API_KEY",
+                "llama-3.3-70b-versatile",
+            ),
+            "openrouter": (
+                "https://openrouter.ai/api/v1",
+                "AEGISX_AI_API_KEY",
+                "openai/gpt-4o-mini",
+            ),
             "ollama": ("http://localhost:11434/v1", "AEGISX_AI_API_KEY", "llama3.1"),
         }
         if self.ai_provider not in presets:
@@ -220,9 +226,7 @@ class AegisxConfig(BaseSettings):
         api_key = self.ai_api_key or os.environ.get("AEGISX_AI_API_KEY", "")
         model = self.ai_model or default_model
         if not model:
-            raise ValueError(
-                "AI model is not configured. Set AEGISX_AI_MODEL or use --ai-model."
-            )
+            raise ValueError("AI model is not configured. Set AEGISX_AI_MODEL or use --ai-model.")
         return base_url, api_key, model
 
     @classmethod
@@ -272,9 +276,7 @@ class AegisxConfig(BaseSettings):
 
         parsed = urlparse(url)
         hostname = parsed.hostname or ""
-        return any(
-            hostname == s or hostname.endswith(f".{s}") for s in self.scope if s.strip()
-        )
+        return any(hostname == s or hostname.endswith(f".{s}") for s in self.scope if s.strip())
 
     def get_auth_headers(self) -> dict[str, str]:
         """Build authentication headers from config."""

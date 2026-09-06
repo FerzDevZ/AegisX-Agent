@@ -205,9 +205,7 @@ class ToolDispatcher:
         if requested:
             unknown = [s for s in requested if s not in original]
             if unknown:
-                return json.dumps(
-                    {"error": f"Unknown scanners: {unknown}. Available: {original}"}
-                )
+                return json.dumps({"error": f"Unknown scanners: {unknown}. Available: {original}"})
             self.config.enabled_scanners = requested
         try:
             await self._orchestrator._phase_scan()
@@ -236,8 +234,7 @@ class ToolDispatcher:
 
         if not self.config.exploit_verification:
             return json.dumps(
-                {"error": "Exploit verification not authorized. "
-                "User must run with --exploit flag."}
+                {"error": "Exploit verification not authorized. User must run with --exploit flag."}
             )
 
         plugin_manager = self._orchestrator.plugin_manager
@@ -287,9 +284,7 @@ class ToolDispatcher:
 
         self.total_requests += 1
         async with create_client(self.config) as client:
-            resp = await client.request(
-                method, url, headers={"User-Agent": self.config.user_agent}
-            )
+            resp = await client.request(method, url, headers={"User-Agent": self.config.user_agent})
         body = resp.text[:1_500] if method != "HEAD" else ""
         return json.dumps(
             {
@@ -317,9 +312,7 @@ class ToolDispatcher:
         finally:
             self.config.report_format = original
 
-        files = sorted(
-            p.name for p in self.config.report_output.glob("aegisx-report-*")
-        )
+        files = sorted(p.name for p in self.config.report_output.glob("aegisx-report-*"))
         return json.dumps(
             {"format": fmt_name, "files": files, "directory": str(self.config.report_output)}
         )
@@ -420,7 +413,8 @@ class ToolDispatcher:
                     "has_expiry": facts["expires"],
                     "lifetime_seconds": lifetime,
                     "sensitive_claims": [
-                        c for c in ("password", "password_hash", "ssn", "credit_card", "api_key")
+                        c
+                        for c in ("password", "password_hash", "ssn", "credit_card", "api_key")
                         if c in facts["claims"]
                     ],
                     "claim_names": sorted(facts["claims"].keys()),
@@ -546,8 +540,7 @@ class ToolDispatcher:
 
         if count == 2 and key in self._results:
             return (
-                self._results[key]
-                + "\n\n[NOTE: identical repeat call — result unchanged. "
+                self._results[key] + "\n\n[NOTE: identical repeat call — result unchanged. "
                 "Do not call this tool again with the same arguments.]"
             )
         if count > 2 and key in self._results:

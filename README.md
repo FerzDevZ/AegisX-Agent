@@ -107,6 +107,7 @@ Exit code reflects the worst finding: `0` clean, `1` high, `2` critical — wire
 aegisx scan        Scan a target for vulnerabilities
 aegisx pentest     Full pentest with exploit verification (consent-gated)
 aegisx agent       Autonomous AI-driven pentest (AegisX Brain)
+aegisx monitor     Continuous monitoring — scheduled re-scans + new-finding alerts
 aegisx ask         Ask the AI about the most recent scan
 aegisx ai-config   Test AI endpoint connectivity and show resolved config
 aegisx recon       Passive reconnaissance only
@@ -130,6 +131,7 @@ aegisx info        Version and component info
 | `--auth` | | Auth token for the target | none |
 | `--user-agent` | `-ua` | Custom User-Agent | `AegisxAgent/x.y` |
 | `--siem` | | Export SIEM JSON-lines events to a file | none |
+| `--notify` | | Webhook URL (Slack/Discord) to push the findings summary | `AEGISX_NOTIFY_WEBHOOK` |
 | `--verbose` | `-v` | Verbose logging | off |
 
 ### Scan Modes
@@ -365,6 +367,31 @@ Ingest with Splunk HEC, Filebeat, or Azure Sentinel — one line, one event.
 
 ---
 
+## 📡 Continuous Monitoring
+
+Turn AegisX from a manual scanner into a sentinel: re-scan on an
+interval and alert **only on new findings**, diffed against the previous
+cycle via the scan-history database.
+
+```bash
+# Hourly patrol, alerts to Slack/Discord (first cycle is the baseline — silent)
+aegisx monitor https://example.com --every 3600 --notify https://hooks.slack.com/services/T/B/X
+
+# Nightly full-mode patrol, capped at 30 cycles
+aegisx monitor https://example.com --every 86400 --mode full --cycles 30
+
+# Webhook from the environment instead of the CLI
+export AEGISX_NOTIFY_WEBHOOK=https://discord.com/api/webhooks/…
+aegisx monitor https://example.com
+```
+
+Notifications cover plain `scan` runs too: `aegisx scan <url> --notify
+<webhook>` pushes the full findings summary when the scan finishes.
+Delivery is best-effort by design — a webhook failure never fails a
+scan.
+
+---
+
 ## 🔌 Plugin System
 
 Community plugins register through entry points — no core changes:
@@ -500,8 +527,8 @@ Aegisx-Agent is built to keep authorized work safe:
 - [x] Agent eval harness — `python -m aegisx.ai.evals` scores 5 scripted scenarios through the real loop
 - [x] SSRF *detection* scanner (CWE-601 open redirect + CWE-918 blind SSRF; pairs with the existing `ssrf_exploit` verifier)
 - [x] Auth scanner — JWT (alg=none, expiry, sensitive claims), session tokens in URLs, OAuth (missing state, loose redirect_uri)
-- [ ] Continuous monitoring (scheduled scans + diff alerts)
-- [ ] Slack/Discord notifications
+- [x] Continuous monitoring — `aegisx monitor <url> --every 3600` re-scans on an interval and alerts only on **new** findings (diffed against the previous cycle)
+- [x] Slack/Discord notifications — `--notify <webhook>` on `scan`/`monitor` (or `AEGISX_NOTIFY_WEBHOOK`); best-effort delivery that never fails a scan
 - [ ] Web dashboard
 
 ---

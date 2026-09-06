@@ -97,20 +97,23 @@ class DependencyScanner(BaseScanner):
 
                 for vuln in known_vulnerable:
                     import re
+
                     if re.search(vuln["pattern"], body):
-                        findings.append(Finding(
-                            title=f"Vulnerable Library: {vuln['name']}",
-                            description=vuln["description"],
-                            severity=vuln["severity"],
-                            cwe_id=vuln["cwe"],
-                            owasp_category="A06:2021",
-                            url=self.config.target_url,
-                            evidence=f"Pattern detected: {vuln['pattern']}",
-                            remediation=vuln["fix"],
-                            references=[
-                                f"CVE: {vuln['cve']}",
-                            ],
-                        ))
+                        findings.append(
+                            Finding(
+                                title=f"Vulnerable Library: {vuln['name']}",
+                                description=vuln["description"],
+                                severity=vuln["severity"],
+                                cwe_id=vuln["cwe"],
+                                owasp_category="A06:2021",
+                                url=self.config.target_url,
+                                evidence=f"Pattern detected: {vuln['pattern']}",
+                                remediation=vuln["fix"],
+                                references=[
+                                    f"CVE: {vuln['cve']}",
+                                ],
+                            )
+                        )
 
         except (httpx.RequestError, ValueError) as e:
             logger.debug("JS library check failed: %s", type(e).__name__)

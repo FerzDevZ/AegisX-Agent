@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aegisx-agent"
-version = "0.1.2"
+version = "0.2.0"
 description = "Autonomous AI-powered cybersecurity penetration testing agent"
 readme = "README.md"
 license = "MIT"
@@ -58,6 +58,20 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "A", "SIM", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately use bare asserts, hardcoded fixture secrets, and
+# long data lines (URLs, payloads, expected strings)
+"tests/*" = ["S101", "S106", "E501", "E402"]
+# Typer's declarative API requires Option()/Argument() calls in defaults
+"src/aegisx/cli.py" = ["B008", "B904"]
+# Knowledge-base tables carry long OWASP/CWE description strings
+"src/aegisx/knowledge/*" = ["E501"]
+# Scanner/exploit payload tables and report templates contain long
+# literal strings that must not be wrapped
+"src/aegisx/scanners/*" = ["E501"]
+"src/aegisx/exploits/*" = ["E501"]
+"src/aegisx/reporters/*" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -5,8 +5,10 @@ Tests the full scan flow: recon → scan → exploit → report.
 
 from __future__ import annotations
 
-import pytest
+import contextlib
+
 import httpx
+import pytest
 import respx
 
 from aegisx.core.config import AegisxConfig, ScanMode
@@ -93,10 +95,8 @@ class TestOrchestratorRecon:
         """Recon should not crash even if target is unreachable."""
         orch = AegisxOrchestrator(config)
         # Don't mock — will fail to connect, but should not crash
-        try:
+        with contextlib.suppress(Exception):
             await orch._phase_recon()
-        except Exception:
-            pass  # Acceptable — the point is it shouldn't be an unhandled crash
         assert orch.context is not None
 
 

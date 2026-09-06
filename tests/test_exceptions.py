@@ -14,8 +14,8 @@ from aegisx.core.exceptions import (
     RateLimitError,
     ReportError,
     ScanError,
-    ScanTargetError,
     ScannerPluginError,
+    ScanTargetError,
     ScopeError,
 )
 

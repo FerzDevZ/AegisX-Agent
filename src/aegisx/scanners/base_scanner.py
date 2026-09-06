@@ -77,9 +77,7 @@ class BaseScanner(ABC):
         try:
             is_valid = await self.validate_target()
             if not is_valid:
-                logger.warning(
-                    "[yellow]SKIP[/] Scanner %s: target not applicable", self.name
-                )
+                logger.warning("[yellow]SKIP[/] Scanner %s: target not applicable", self.name)
                 return []
         except httpx.RequestError as e:
             logger.debug("Scanner %s validation failed: %s", self.name, type(e).__name__)

@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import re
 
-import pytest
 import httpx
+import pytest
 import respx
 
 from aegisx.core.config import AegisxConfig, ScanMode
 from aegisx.core.context import ScanContext, Severity
-from aegisx.scanners.secret_scanner import SecretScanner
 from aegisx.scanners.config_scanner import ConfigScanner
 from aegisx.scanners.dependency_scanner import DependencyScanner
-from aegisx.scanners.network_scanner import NetworkScanner, COMMON_PORTS, DANGEROUS_SERVICES
-
+from aegisx.scanners.network_scanner import COMMON_PORTS, DANGEROUS_SERVICES, NetworkScanner
+from aegisx.scanners.secret_scanner import SecretScanner
 
 # ── Fixtures ───────────────────────────────────────────────────
+
 
 @pytest.fixture
 def config() -> AegisxConfig:
@@ -36,6 +36,7 @@ def context(config: AegisxConfig) -> ScanContext:
 # ═══════════════════════════════════════════════════════════════
 # SecretScanner Tests
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestSecretScanner:
     def test_init(self, context):
@@ -73,20 +74,22 @@ class TestSecretScanner:
     @pytest.mark.asyncio
     async def test_detects_private_key(self, context):
         content = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGcY5unA67hqlYMd4Prn7dOt2\n-----END RSA PRIVATE KEY-----"
-        respx.get("https://test.example.com").mock(
-            return_value=httpx.Response(200, text=content)
-        )
+        respx.get("https://test.example.com").mock(return_value=httpx.Response(200, text=content))
         for path in SecretScanner.SECRET_PATHS:
             respx.get(f"https://test.example.com{path}").mock(return_value=httpx.Response(404))
         s = SecretScanner(context=context)
         findings = await s.scan()
-        assert any("Private Key" in f.title for f in findings), f"Got: {[f.title for f in findings]}"
+        assert any("Private Key" in f.title for f in findings), (
+            f"Got: {[f.title for f in findings]}"
+        )
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_detects_database_url(self, context):
         respx.get("https://test.example.com").mock(
-            return_value=httpx.Response(200, text='database_url="postgres://admin:secret@db:5432/prod"')
+            return_value=httpx.Response(
+                200, text='database_url="postgres://admin:secret@db:5432/prod"'
+            )
         )
         for path in SecretScanner.SECRET_PATHS:
             respx.get(f"https://test.example.com{path}").mock(return_value=httpx.Response(404))
@@ -138,13 +141,14 @@ class TestSecretScanner:
         assert any("API Key" in f.title for f in findings), f"Got: {[f.title for f in findings]}"
 
     def test_secret_patterns_compile(self):
-        for pattern, name, _, _ in SecretScanner.SECRET_PATTERNS:
+        for pattern, _name, _, _ in SecretScanner.SECRET_PATTERNS:
             re.compile(pattern)
 
 
 # ═══════════════════════════════════════════════════════════════
 # ConfigScanner Tests
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestConfigScanner:
     def test_init(self, context):
@@ -165,7 +169,9 @@ class TestConfigScanner:
     @pytest.mark.asyncio
     async def test_detects_default_page(self, context):
         respx.get("https://test.example.com").mock(
-            return_value=httpx.Response(200, text="<h1>Welcome to nginx</h1>\n<p>nginx welcome page</p>")
+            return_value=httpx.Response(
+                200, text="<h1>Welcome to nginx</h1>\n<p>nginx welcome page</p>"
+            )
         )
         s = ConfigScanner(context=context)
         findings = await s.scan()
@@ -225,7 +231,9 @@ class TestConfigScanner:
         )
         s = ConfigScanner(context=context)
         findings = await s.scan()
-        assert not any(f.title.startswith("Debug") or f.title.startswith("Default") for f in findings)
+        assert not any(
+            f.title.startswith("Debug") or f.title.startswith("Default") for f in findings
+        )
 
     @respx.mock
     @pytest.mark.asyncio
@@ -250,6 +258,7 @@ class TestConfigScanner:
 # ═══════════════════════════════════════════════════════════════
 # DependencyScanner Tests
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestDependencyScanner:
     def test_init(self, context):
@@ -305,6 +314,7 @@ class TestDependencyScanner:
 # ═══════════════════════════════════════════════════════════════
 # NetworkScanner Tests
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestNetworkScanner:
     def test_init(self, context):

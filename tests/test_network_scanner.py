@@ -51,7 +51,7 @@ class TestCommonPorts:
 
     def test_dangerous_service_severity(self):
         """DANGEROUS_SERVICES values are tuples: (name, reason, Severity)."""
-        for port, (name, reason, severity) in DANGEROUS_SERVICES.items():
+        for _port, (name, reason, severity) in DANGEROUS_SERVICES.items():
             assert isinstance(name, str)
             assert isinstance(reason, str)
             assert isinstance(severity, Severity)

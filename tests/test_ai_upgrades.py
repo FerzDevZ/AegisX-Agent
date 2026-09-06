@@ -76,7 +76,7 @@ def _tc(call_id: str, name: str, args: dict) -> dict:
 
 class TestRedaction:
     def test_aws_key_redacted(self):
-        out = redact('evidence: AKIAIOSFODNN7EXAMPLE found')
+        out = redact("evidence: AKIAIOSFODNN7EXAMPLE found")
         assert "AKIAIOSFODNN7EXAMPLE" not in out
         assert "REDACTED" in out
 

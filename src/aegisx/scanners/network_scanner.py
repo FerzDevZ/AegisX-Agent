@@ -62,9 +62,34 @@ COMMON_PORTS: dict[int, str] = {
 
 # Top 100 ports (subset for quick scan)
 TOP_100_PORTS = [
-    21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445,
-    993, 995, 1433, 1521, 2049, 3306, 3389, 5432, 5900, 6379,
-    8080, 8443, 9200, 11211, 27017,
+    21,
+    22,
+    23,
+    25,
+    53,
+    80,
+    110,
+    111,
+    135,
+    139,
+    143,
+    443,
+    445,
+    993,
+    995,
+    1433,
+    1521,
+    2049,
+    3306,
+    3389,
+    5432,
+    5900,
+    6379,
+    8080,
+    8443,
+    9200,
+    11211,
+    27017,
 ]
 
 # Dangerous services that should not be exposed
@@ -93,6 +118,7 @@ DANGEROUS_SERVICES: dict[int, tuple[str, str, Severity]] = {
 @dataclass
 class PortResult:
     """Result of a single port scan."""
+
     port: int
     is_open: bool
     service: str = ""
@@ -218,47 +244,54 @@ class NetworkScanner(BaseScanner):
             # Check for dangerous services
             if port in DANGEROUS_SERVICES:
                 svc_name, desc, severity = DANGEROUS_SERVICES[port]
-                findings.append(Finding(
-                    title=f"Exposed Service: {svc_name} (Port {port})",
-                    description=(
-                        f"{svc_name} is exposed on port {port}. {desc}. "
-                        f"Response time: {port_result.response_time_ms:.0f}ms"
-                    ),
-                    severity=severity,
-                    cvss_score=self._calculate_port_cvss(port),
-                    cwe_id="CWE-284",
-                    owasp_category="A05:2021",
-                    url=self.config.target_url,
-                    endpoint=f"{self._target_host}:{port}",
-                    method="TCP",
-                    evidence=f"Port {port} open — Service: {service}" + (f" — Banner: {port_result.banner}" if port_result.banner else ""),
-                    remediation=(
-                        f"Restrict access to port {port} ({svc_name}) using firewall rules. "
-                        "If the service is not needed, disable it. "
-                        "If needed, restrict access to specific IP ranges."
-                    ),
-                    references=[
-                        f"https://www.cvedetails.com/vulnerability-list/vendor_id-1/product_id-1/{svc_name}.html",
-                    ],
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Exposed Service: {svc_name} (Port {port})",
+                        description=(
+                            f"{svc_name} is exposed on port {port}. {desc}. "
+                            f"Response time: {port_result.response_time_ms:.0f}ms"
+                        ),
+                        severity=severity,
+                        cvss_score=self._calculate_port_cvss(port),
+                        cwe_id="CWE-284",
+                        owasp_category="A05:2021",
+                        url=self.config.target_url,
+                        endpoint=f"{self._target_host}:{port}",
+                        method="TCP",
+                        evidence=f"Port {port} open — Service: {service}"
+                        + (f" — Banner: {port_result.banner}" if port_result.banner else ""),
+                        remediation=(
+                            f"Restrict access to port {port} ({svc_name}) using firewall rules. "
+                            "If the service is not needed, disable it. "
+                            "If needed, restrict access to specific IP ranges."
+                        ),
+                        references=[
+                            f"https://www.cvedetails.com/vulnerability-list/vendor_id-1/product_id-1/{svc_name}.html",
+                        ],
+                    )
+                )
 
             # Check for unknown services on high ports
             elif port > 1024 and port not in COMMON_PORTS:
-                findings.append(Finding(
-                    title=f"Unknown Service on Port {port}",
-                    description=(
-                        f"An unknown service is running on port {port}. "
-                        "Unknown services should be investigated and removed if not needed."
-                    ),
-                    severity=Severity.LOW,
-                    cwe_id="CWE-16",
-                    owasp_category="A05:2021",
-                    url=self.config.target_url,
-                    endpoint=f"{self._target_host}:{port}",
-                    method="TCP",
-                    evidence=f"Port {port} open — Banner: {port_result.banner}" if port_result.banner else f"Port {port} open — No banner",
-                    remediation="Investigate and remove unknown services.",
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Unknown Service on Port {port}",
+                        description=(
+                            f"An unknown service is running on port {port}. "
+                            "Unknown services should be investigated and removed if not needed."
+                        ),
+                        severity=Severity.LOW,
+                        cwe_id="CWE-16",
+                        owasp_category="A05:2021",
+                        url=self.config.target_url,
+                        endpoint=f"{self._target_host}:{port}",
+                        method="TCP",
+                        evidence=f"Port {port} open — Banner: {port_result.banner}"
+                        if port_result.banner
+                        else f"Port {port} open — No banner",
+                        remediation="Investigate and remove unknown services.",
+                    )
+                )
 
             # Check for banner information disclosure
             if port_result.banner:
@@ -285,23 +318,26 @@ class NetworkScanner(BaseScanner):
         ]
 
         import re
+
         for pattern, service in version_patterns:
             if re.search(pattern, banner):
-                findings.append(Finding(
-                    title=f"{service} Version Disclosure (Port {port_result.port})",
-                    description=(
-                        f"The {service} banner on port {port_result.port} reveals version information. "
-                        "This helps attackers identify specific vulnerabilities."
-                    ),
-                    severity=Severity.LOW,
-                    cwe_id="CWE-200",
-                    owasp_category="A05:2021",
-                    url=self.config.target_url,
-                    endpoint=f"{self._target_host}:{port_result.port}",
-                    method="TCP",
-                    evidence=f"Banner: {port_result.banner}",
-                    remediation=f"Configure {service} to hide version information.",
-                ))
+                findings.append(
+                    Finding(
+                        title=f"{service} Version Disclosure (Port {port_result.port})",
+                        description=(
+                            f"The {service} banner on port {port_result.port} reveals version information. "
+                            "This helps attackers identify specific vulnerabilities."
+                        ),
+                        severity=Severity.LOW,
+                        cwe_id="CWE-200",
+                        owasp_category="A05:2021",
+                        url=self.config.target_url,
+                        endpoint=f"{self._target_host}:{port_result.port}",
+                        method="TCP",
+                        evidence=f"Banner: {port_result.banner}",
+                        remediation=f"Configure {service} to hide version information.",
+                    )
+                )
                 break
 
         return findings
@@ -325,16 +361,18 @@ class NetworkScanner(BaseScanner):
             def ssl_check() -> dict[str, Any]:
                 result: dict[str, Any] = {}
                 try:
-                    with socket.create_connection((hostname, port), timeout=5) as sock:
-                        with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                            cert = ssock.getpeercert()
-                            cipher = ssock.cipher()
-                            version = ssock.version()
+                    with (
+                        socket.create_connection((hostname, port), timeout=5) as sock,
+                        context.wrap_socket(sock, server_hostname=hostname) as ssock,
+                    ):
+                        cert = ssock.getpeercert()
+                        cipher = ssock.cipher()
+                        version = ssock.version()
 
-                            result["cert"] = cert
-                            result["cipher"] = cipher
-                            result["tls_version"] = version
-                            result["success"] = True
+                        result["cert"] = cert
+                        result["cipher"] = cipher
+                        result["tls_version"] = version
+                        result["success"] = True
                 except (ssl.SSLError, OSError) as e:
                     result["error"] = type(e).__name__
                     result["success"] = False
@@ -345,46 +383,52 @@ class NetworkScanner(BaseScanner):
             if not ssl_result.get("success"):
                 error = ssl_result.get("error", "Unknown error")
                 if "self-signed" in error.lower():
-                    findings.append(Finding(
-                        title="Self-Signed SSL Certificate",
-                        description=(
-                            "The SSL certificate is self-signed. Browsers will show "
-                            "security warnings to users."
-                        ),
-                        severity=Severity.HIGH,
-                        cvss_score=7.0,
-                        cwe_id="CWE-295",
-                        owasp_category="A07:2021",
-                        url=self.config.target_url,
-                        method="TLS",
-                        evidence=f"SSL Error: {error}",
-                        remediation="Use a certificate from a trusted Certificate Authority.",
-                    ))
+                    findings.append(
+                        Finding(
+                            title="Self-Signed SSL Certificate",
+                            description=(
+                                "The SSL certificate is self-signed. Browsers will show "
+                                "security warnings to users."
+                            ),
+                            severity=Severity.HIGH,
+                            cvss_score=7.0,
+                            cwe_id="CWE-295",
+                            owasp_category="A07:2021",
+                            url=self.config.target_url,
+                            method="TLS",
+                            evidence=f"SSL Error: {error}",
+                            remediation="Use a certificate from a trusted Certificate Authority.",
+                        )
+                    )
                 elif "expired" in error.lower():
-                    findings.append(Finding(
-                        title="Expired SSL Certificate",
-                        description="The SSL certificate has expired.",
-                        severity=Severity.CRITICAL,
-                        cvss_score=9.0,
-                        cwe_id="CWE-295",
-                        owasp_category="A07:2021",
-                        url=self.config.target_url,
-                        method="TLS",
-                        evidence=f"SSL Error: {error}",
-                        remediation="Renew the SSL certificate immediately.",
-                    ))
+                    findings.append(
+                        Finding(
+                            title="Expired SSL Certificate",
+                            description="The SSL certificate has expired.",
+                            severity=Severity.CRITICAL,
+                            cvss_score=9.0,
+                            cwe_id="CWE-295",
+                            owasp_category="A07:2021",
+                            url=self.config.target_url,
+                            method="TLS",
+                            evidence=f"SSL Error: {error}",
+                            remediation="Renew the SSL certificate immediately.",
+                        )
+                    )
                 elif "certificate verify" in error.lower() or "ssl" in error.lower():
-                    findings.append(Finding(
-                        title="SSL/TLS Connection Failed",
-                        description=f"SSL/TLS connection failed: {error}",
-                        severity=Severity.HIGH,
-                        cwe_id="CWE-295",
-                        owasp_category="A07:2021",
-                        url=self.config.target_url,
-                        method="TLS",
-                        evidence=f"SSL Error: {error}",
-                        remediation="Configure valid SSL/TLS certificate.",
-                    ))
+                    findings.append(
+                        Finding(
+                            title="SSL/TLS Connection Failed",
+                            description=f"SSL/TLS connection failed: {error}",
+                            severity=Severity.HIGH,
+                            cwe_id="CWE-295",
+                            owasp_category="A07:2021",
+                            url=self.config.target_url,
+                            method="TLS",
+                            evidence=f"SSL Error: {error}",
+                            remediation="Configure valid SSL/TLS certificate.",
+                        )
+                    )
                 return findings
 
             # Analyze certificate
@@ -395,21 +439,23 @@ class NetworkScanner(BaseScanner):
             # Check TLS version
             tls_version = ssl_result.get("tls_version", "")
             if tls_version in ("TLSv1", "TLSv1.1", "SSLv3", "SSLv2"):
-                findings.append(Finding(
-                    title=f"Outdated TLS Version: {tls_version}",
-                    description=(
-                        f"The server uses {tls_version} which is deprecated and vulnerable. "
-                        "TLS 1.2 or 1.3 should be used."
-                    ),
-                    severity=Severity.HIGH,
-                    cvss_score=7.0,
-                    cwe_id="CWE-326",
-                    owasp_category="A02:2021",
-                    url=self.config.target_url,
-                    method="TLS",
-                    evidence=f"TLS Version: {tls_version}",
-                    remediation="Disable TLS 1.0/1.1 and enable TLS 1.2+.",
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Outdated TLS Version: {tls_version}",
+                        description=(
+                            f"The server uses {tls_version} which is deprecated and vulnerable. "
+                            "TLS 1.2 or 1.3 should be used."
+                        ),
+                        severity=Severity.HIGH,
+                        cvss_score=7.0,
+                        cwe_id="CWE-326",
+                        owasp_category="A02:2021",
+                        url=self.config.target_url,
+                        method="TLS",
+                        evidence=f"TLS Version: {tls_version}",
+                        remediation="Disable TLS 1.0/1.1 and enable TLS 1.2+.",
+                    )
+                )
 
             # Check cipher
             cipher = ssl_result.get("cipher", ())
@@ -418,17 +464,19 @@ class NetworkScanner(BaseScanner):
                 weak_ciphers = ["RC4", "DES", "3DES", "NULL", "EXPORT", "MD5"]
                 for weak in weak_ciphers:
                     if weak in cipher_name.upper():
-                        findings.append(Finding(
-                            title=f"Weak Cipher: {cipher_name}",
-                            description=f"The cipher suite {cipher_name} is considered weak.",
-                            severity=Severity.MEDIUM,
-                            cwe_id="CWE-326",
-                            owasp_category="A02:2021",
-                            url=self.config.target_url,
-                            method="TLS",
-                            evidence=f"Cipher: {cipher_name}",
-                            remediation="Use strong cipher suites (AES-GCM, ChaCha20).",
-                        ))
+                        findings.append(
+                            Finding(
+                                title=f"Weak Cipher: {cipher_name}",
+                                description=f"The cipher suite {cipher_name} is considered weak.",
+                                severity=Severity.MEDIUM,
+                                cwe_id="CWE-326",
+                                owasp_category="A02:2021",
+                                url=self.config.target_url,
+                                method="TLS",
+                                evidence=f"Cipher: {cipher_name}",
+                                remediation="Use strong cipher suites (AES-GCM, ChaCha20).",
+                            )
+                        )
                         break
 
         except (ssl.SSLError, OSError) as e:
@@ -448,37 +496,41 @@ class NetworkScanner(BaseScanner):
             try:
                 # Parse the date (format: "Mon DD HH:MM:SS YYYY GMT")
 
-                expire_date = datetime.datetime.strptime(
-                    not_after, "%b %d %H:%M:%S %Y %Z"
-                ).replace(tzinfo=datetime.UTC)
+                expire_date = datetime.datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(
+                    tzinfo=datetime.UTC
+                )
                 now = datetime.datetime.now(datetime.UTC)
                 days_left = (expire_date - now).days
 
                 if days_left < 0:
-                    findings.append(Finding(
-                        title="SSL Certificate Expired",
-                        description=f"The SSL certificate expired {abs(days_left)} days ago.",
-                        severity=Severity.CRITICAL,
-                        cvss_score=9.0,
-                        cwe_id="CWE-295",
-                        owasp_category="A07:2021",
-                        url=self.config.target_url,
-                        method="TLS",
-                        evidence=f"Expired: {not_after}",
-                        remediation="Renew the SSL certificate immediately.",
-                    ))
+                    findings.append(
+                        Finding(
+                            title="SSL Certificate Expired",
+                            description=f"The SSL certificate expired {abs(days_left)} days ago.",
+                            severity=Severity.CRITICAL,
+                            cvss_score=9.0,
+                            cwe_id="CWE-295",
+                            owasp_category="A07:2021",
+                            url=self.config.target_url,
+                            method="TLS",
+                            evidence=f"Expired: {not_after}",
+                            remediation="Renew the SSL certificate immediately.",
+                        )
+                    )
                 elif days_left < 30:
-                    findings.append(Finding(
-                        title="SSL Certificate Expiring Soon",
-                        description=f"The SSL certificate expires in {days_left} days.",
-                        severity=Severity.MEDIUM,
-                        cwe_id="CWE-295",
-                        owasp_category="A07:2021",
-                        url=self.config.target_url,
-                        method="TLS",
-                        evidence=f"Expires: {not_after}",
-                        remediation="Renew the SSL certificate before expiration.",
-                    ))
+                    findings.append(
+                        Finding(
+                            title="SSL Certificate Expiring Soon",
+                            description=f"The SSL certificate expires in {days_left} days.",
+                            severity=Severity.MEDIUM,
+                            cwe_id="CWE-295",
+                            owasp_category="A07:2021",
+                            url=self.config.target_url,
+                            method="TLS",
+                            evidence=f"Expires: {not_after}",
+                            remediation="Renew the SSL certificate before expiration.",
+                        )
+                    )
             except ValueError:
                 pass
 
@@ -486,21 +538,23 @@ class NetworkScanner(BaseScanner):
         subject = dict(x[0] for x in cert.get("subject", ()))
         cn = subject.get("commonName", "")
         if cn and cn != hostname and not self._cn_matches_hostname(cn, hostname):
-            findings.append(Finding(
-                title="SSL Certificate CN Mismatch",
-                description=(
-                    f"The certificate Common Name '{cn}' does not match "
-                    f"the hostname '{hostname}'."
-                ),
-                severity=Severity.HIGH,
-                cvss_score=7.0,
-                cwe_id="CWE-297",
-                owasp_category="A07:2021",
-                url=self.config.target_url,
-                method="TLS",
-                evidence=f"CN: {cn}, Expected: {hostname}",
-                remediation="Issue a certificate with the correct Common Name or SAN.",
-            ))
+            findings.append(
+                Finding(
+                    title="SSL Certificate CN Mismatch",
+                    description=(
+                        f"The certificate Common Name '{cn}' does not match "
+                        f"the hostname '{hostname}'."
+                    ),
+                    severity=Severity.HIGH,
+                    cvss_score=7.0,
+                    cwe_id="CWE-297",
+                    owasp_category="A07:2021",
+                    url=self.config.target_url,
+                    method="TLS",
+                    evidence=f"CN: {cn}, Expected: {hostname}",
+                    remediation="Issue a certificate with the correct Common Name or SAN.",
+                )
+            )
 
         # Check if using SAN
         san_names = []
@@ -509,16 +563,18 @@ class NetworkScanner(BaseScanner):
                 san_names.append(ext[1])
 
         if not san_names:
-            findings.append(Finding(
-                title="SSL Certificate Without SAN",
-                description="The certificate does not use Subject Alternative Names (SAN).",
-                severity=Severity.LOW,
-                cwe_id="CWE-295",
-                owasp_category="A07:2021",
-                url=self.config.target_url,
-                method="TLS",
-                remediation="Use SAN certificates for better compatibility.",
-            ))
+            findings.append(
+                Finding(
+                    title="SSL Certificate Without SAN",
+                    description="The certificate does not use Subject Alternative Names (SAN).",
+                    severity=Severity.LOW,
+                    cwe_id="CWE-295",
+                    owasp_category="A07:2021",
+                    url=self.config.target_url,
+                    method="TLS",
+                    remediation="Use SAN certificates for better compatibility.",
+                )
+            )
 
         return findings
 
@@ -537,8 +593,11 @@ class NetworkScanner(BaseScanner):
         try:
             # Check for zone transfer
             import subprocess
+
             result = await asyncio.create_subprocess_exec(
-                "dig", self._target_host, "+short",
+                "dig",
+                self._target_host,
+                "+short",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -554,20 +613,22 @@ class NetworkScanner(BaseScanner):
                         break
                 else:
                     if ips and ips[0]:
-                        findings.append(Finding(
-                            title="DNS Mismatch",
-                            description=(
-                                f"DNS resolves to {ips[0]} but we connected to {self._target_ip}. "
-                                "This could indicate DNS poisoning or CDN configuration."
-                            ),
-                            severity=Severity.LOW,
-                            cwe_id="CWE-350",
-                            owasp_category="A05:2021",
-                            url=self.config.target_url,
-                            method="DNS",
-                            evidence=f"DNS: {dns_result}, Connected: {self._target_ip}",
-                            remediation="Verify DNS configuration is correct.",
-                        ))
+                        findings.append(
+                            Finding(
+                                title="DNS Mismatch",
+                                description=(
+                                    f"DNS resolves to {ips[0]} but we connected to {self._target_ip}. "
+                                    "This could indicate DNS poisoning or CDN configuration."
+                                ),
+                                severity=Severity.LOW,
+                                cwe_id="CWE-350",
+                                owasp_category="A05:2021",
+                                url=self.config.target_url,
+                                method="DNS",
+                                evidence=f"DNS: {dns_result}, Connected: {self._target_ip}",
+                                remediation="Verify DNS configuration is correct.",
+                            )
+                        )
 
         except (FileNotFoundError, subprocess.SubprocessError, OSError) as e:
             # dig not available or DNS lookup failed — skip quietly
@@ -579,7 +640,11 @@ class NetworkScanner(BaseScanner):
         """Check HTTP on non-standard ports."""
         findings = []
 
-        http_ports = [p.port for p in open_ports if p.port not in (80, 443) and p.service in ("HTTP", "HTTP-Proxy", "HTTP-Alt")]
+        http_ports = [
+            p.port
+            for p in open_ports
+            if p.port not in (80, 443) and p.service in ("HTTP", "HTTP-Proxy", "HTTP-Alt")
+        ]
 
         for port in http_ports:
             try:
@@ -593,21 +658,23 @@ class NetworkScanner(BaseScanner):
                     body = response.text.lower()
                     admin_indicators = ["admin", "login", "dashboard", "phpmyadmin"]
                     if any(indicator in body for indicator in admin_indicators):
-                        findings.append(Finding(
-                            title=f"HTTP Service on Non-Standard Port {port}",
-                            description=(
-                                f"An HTTP service with admin/login content is running on "
-                                f"non-standard port {port}. This may be an unintended exposure."
-                            ),
-                            severity=Severity.MEDIUM,
-                            cwe_id="CWE-284",
-                            owasp_category="A05:2021",
-                            url=url,
-                            endpoint=f":{port}/",
-                            method="GET",
-                            evidence=f"HTTP {response.status_code} on port {port}",
-                            remediation="Restrict access to non-standard HTTP ports.",
-                        ))
+                        findings.append(
+                            Finding(
+                                title=f"HTTP Service on Non-Standard Port {port}",
+                                description=(
+                                    f"An HTTP service with admin/login content is running on "
+                                    f"non-standard port {port}. This may be an unintended exposure."
+                                ),
+                                severity=Severity.MEDIUM,
+                                cwe_id="CWE-284",
+                                owasp_category="A05:2021",
+                                url=url,
+                                endpoint=f":{port}/",
+                                method="GET",
+                                evidence=f"HTTP {response.status_code} on port {port}",
+                                remediation="Restrict access to non-standard HTTP ports.",
+                            )
+                        )
 
             except (httpx.RequestError, httpx.TimeoutException):
                 pass
