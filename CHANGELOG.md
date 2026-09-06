@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Agent session resume**: every agent iteration is atomically checkpointed to `~/.aegisx/sessions/<scan-id>.json`; interrupted runs (Ctrl-C, network loss) resume with `aegisx agent --continue <scan-id>` — message history, counters, and token usage are restored and no tool is re-executed. List saved sessions with `aegisx agent --continue list`
+- **Streaming output**: `aegisx agent --stream` forwards content deltas to the terminal as the model generates them (`stream: true` SSE); the provider accumulates streamed tool-call fragments into complete calls and silently falls back to a plain request when the endpoint does not support SSE
+- **Nudge eval scenario**: `truncation_nudge_recovery` added to the eval harness (now 5 scenarios) so the stub-answer nudge stays regression-tested
+- `AEGISX_SESSIONS_DIR` env var to relocate the session store (tests are fully hermetic now)
+
 - **AegisX Brain hardening batch (agent upgrades #1–#8)**:
   - **Secret redaction** (`ai/redaction.py`): AWS keys, OpenAI/Anthropic-style keys, GitHub tokens, JWTs, private key blocks (including truncated ones), DB connection strings, and generic key=value secrets are masked as `[REDACTED:<label>]` before any tool output reaches the LLM provider
   - **Retry with exponential backoff** in the provider: network errors, HTTP 429, and 5xx are retried (3 attempts, 1s→2s→4s); client errors (4xx) fail fast

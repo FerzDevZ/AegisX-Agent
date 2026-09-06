@@ -6,11 +6,13 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _isolate_config_env(monkeypatch):
+def _isolate_config_env(monkeypatch, tmp_path):
     """Keep tests hermetic: never load a developer's real ~/.aegisx/.env.
 
     AegisxConfig layers the home-directory .env under per-project .env so
     the installed CLI works anywhere; tests must not inherit those values.
+    Also redirects the agent session store (and history DB) into a temp
+    directory so test runs never touch the developer's real data.
     """
     from pydantic_settings import BaseSettings
 
@@ -31,6 +33,8 @@ def _isolate_config_env(monkeypatch):
         "settings_customise_sources",
         classmethod(_no_dotenv_sources),
     )
+    monkeypatch.setenv("AEGISX_SESSIONS_DIR", str(tmp_path / "sessions"))
+    monkeypatch.setenv("AEGISX_HISTORY_DB", str(tmp_path / "history.db"))
     yield
 
 from aegisx.core.config import AegisxConfig, ReportFormat, ScanMode, Severity

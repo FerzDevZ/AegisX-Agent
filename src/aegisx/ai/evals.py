@@ -176,11 +176,34 @@ def _scenario_forbidden_exploit() -> EvalScenario:
     )
 
 
+def _scenario_truncation_nudge() -> EvalScenario:
+    """A stub no-tool answer must trigger the nudge, then real work follows."""
+    return EvalScenario(
+        name="truncation_nudge_recovery",
+        description="Stub final answer is nudged once, then the agent works",
+        target_url="https://eval-nudge.example.com",
+        expect_tools_called=["run_recon", "generate_report"],
+        script=[
+            # Iteration 1: truncated stub, no tools (the bug seen live with
+            # free models) — the harness must nudge instead of accepting it
+            ScriptedStep(content="The user wants me to begin the assessment of"),
+            # Iteration 2: after the nudge the model starts working
+            ScriptedStep(tool_calls=[("run_recon", {})]),
+            # Iteration 3: finishes properly
+            ScriptedStep(
+                tool_calls=[("generate_report", {"format": "markdown"})]
+            ),
+            ScriptedStep(content="Assessment complete after nudge recovery." * 10),
+        ],
+    )
+
+
 BUILTIN_SCENARIOS: list[EvalScenario] = [
     _scenario_full_pipeline(),
     _scenario_scope_violation(),
     _scenario_parallel_tools(),
     _scenario_forbidden_exploit(),
+    _scenario_truncation_nudge(),
 ]
 
 
@@ -290,6 +313,8 @@ class EvalRunner:
 
         agent = AegisxAgent(config, context)
         agent.provider = provider  # inject mock or live provider
+        # Evals must not pollute the user's real session store
+        agent.session_store = None
 
         try:
             result: AgentResult = await agent.run()

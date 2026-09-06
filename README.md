@@ -486,6 +486,9 @@ Aegisx-Agent is built to keep authorized work safe:
 - [x] AI agent mode with bring-your-own LLM
 - [x] Scan history + SIEM export + proxy support
 - [x] GitHub Actions CI
+- [x] Agent session resume — interrupted runs continue with `aegisx agent --continue <scan-id>` (checkpoints after every iteration, atomic writes)
+- [x] Streaming output — `aegisx agent --stream` prints model deltas live, with automatic fallback when the endpoint lacks SSE support
+- [x] Agent eval harness — `python -m aegisx.ai.evals` scores 5 scripted scenarios through the real loop
 - [ ] SSRF *detection* scanner (the exploit verifier already exists)
 - [ ] Auth scanner (JWT, session, OAuth testing)
 - [ ] Continuous monitoring (scheduled scans + diff alerts)

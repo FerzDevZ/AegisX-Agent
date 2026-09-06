@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,6 +27,7 @@ from typing import Any
 
 from aegisx.ai.prompts import BUDGET_WARNING, SYSTEM_PROMPT
 from aegisx.ai.provider import AIProvider, AIProviderError
+from aegisx.ai.sessions import AgentSessionState, SessionStore
 from aegisx.ai.tools import TOOL_SCHEMAS, ToolDispatcher
 from aegisx.core.config import AegisxConfig
 from aegisx.core.context import ScanContext
@@ -87,14 +89,68 @@ class AegisxAgent:
         self._dup_warned = False
         self._nudged = False
         self._context_digest: str = ""
+        # Resumability + streaming (optional, wired by CLI/tests)
+        self.session_store: SessionStore | None = SessionStore()
+        self.on_delta: Callable[[str], None] | None = None  # streaming hook
 
     async def run(self) -> AgentResult:
         """Execute the autonomous loop until done, budget-exhausted, or error."""
         result = AgentResult()
+
+        # Fresh run: start the session checkpoint file so interrupted runs
+        # can be located and resumed later.
+        if self.session_store is not None:
+            self._snapshot(result, status="running")
+
+        return await self._drive_loop(result, start_iteration=1)
+
+    async def resume(self, scan_id: str) -> AgentResult:
+        """Continue a previously interrupted run from its last checkpoint.
+
+        Message history, counters, and token usage are restored from the
+        session store; no tool is re-executed on resume. Raises ValueError
+        when the session is unknown or already finished.
+        """
+        if self.session_store is None:
+            raise ValueError("Session store disabled — cannot resume")
+        state = self.session_store.load(scan_id)
+        if state is None:
+            raise ValueError(f"No such agent session: {scan_id}")
+        if state.status in ("done", "budget", "error"):
+            raise ValueError(
+                f"Session {scan_id} already finished (status={state.status})"
+            )
+
+        self.messages = list(state.messages)
+        self.context.scan_id = state.scan_id
+        logger.info(
+            "[bold blue]AGENT[/] resuming %s (target=%s, %d prior iterations, "
+            "%d tool calls)",
+            scan_id,
+            state.target_url,
+            state.iterations_used,
+            state.tool_calls_made,
+        )
+
+        result = AgentResult(
+            iterations_used=state.iterations_used,
+            tool_calls_made=state.tool_calls_made,
+            http_requests_made=state.http_requests_made,
+            prompt_tokens=state.prompt_tokens,
+            completion_tokens=state.completion_tokens,
+        )
+        return await self._drive_loop(
+            result, start_iteration=state.iterations_used + 1
+        )
+
+    async def _drive_loop(
+        self, result: AgentResult, start_iteration: int
+    ) -> AgentResult:
+        """Run the tool-calling loop from ``start_iteration`` until done/budget/error."""
         max_iters = self.config.ai_max_iterations
 
         try:
-            for iteration in range(1, max_iters + 1):
+            for iteration in range(start_iteration, max_iters + 1):
                 result.iterations_used = iteration
                 self._trim_history()
 
@@ -102,7 +158,26 @@ class AegisxAgent:
                 if iteration == max_iters - 2:
                     self.messages.append({"role": "user", "content": BUDGET_WARNING})
 
-                chat = await self.provider.chat(self.messages, tools=TOOL_SCHEMAS)
+                if self.on_delta is not None:
+                    # Streaming path: deltas flow to the callback as they
+                    # arrive; falls back to a plain request when the
+                    # endpoint does not support SSE streaming.
+                    chat = await self.provider.chat_stream(
+                        self.messages,
+                        tools=TOOL_SCHEMAS,
+                        on_delta=self.on_delta,
+                    )
+                    if chat is None:
+                        logger.info(
+                            "[dim]AGENT[/] endpoint lacks SSE streaming — "
+                            "falling back to plain request"
+                        )
+                        self.on_delta = None
+                        chat = await self.provider.chat(
+                            self.messages, tools=TOOL_SCHEMAS
+                        )
+                else:
+                    chat = await self.provider.chat(self.messages, tools=TOOL_SCHEMAS)
                 result.tool_calls_made += len(chat.tool_calls)
                 self._accumulate_usage(result, chat.usage)
 
@@ -180,6 +255,11 @@ class AegisxAgent:
                             ),
                         }
                     )
+
+                # Checkpoint after every completed iteration — an interrupt
+                # here resumes cleanly with nothing lost.
+                if self.session_store is not None:
+                    self._snapshot(result, status="running")
 
             result.stopped_reason = "budget"
             result.final_message = await self._force_summary()
@@ -287,6 +367,30 @@ class AegisxAgent:
             result.completion_tokens,
             result.total_tokens,
         )
+        # Terminal checkpoint so the session is marked done/budget/error
+        if self.session_store is not None:
+            self._snapshot(result, status=result.stopped_reason or "done")
+
+    def _snapshot(self, result: AgentResult, status: str = "running") -> None:
+        """Checkpoint harness state to the session store (best-effort)."""
+        if self.session_store is None:  # callers normally gate on this
+            return
+        state = AgentSessionState(
+            scan_id=self.context.scan_id,
+            target_url=self.config.target_url,
+            model=self.provider.model,
+            endpoint=self.provider.base_url,
+            iterations_used=result.iterations_used,
+            tool_calls_made=result.tool_calls_made,
+            http_requests_made=result.http_requests_made,
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+            messages=list(self.messages),
+            final_message=result.final_message,
+            status=status,
+            error=result.error,
+        )
+        self.session_store.save(state)
 
     def _save_transcript(self, result: AgentResult) -> str:
         """Write the full message transcript to reports/.audit/ (best-effort)."""

@@ -20,6 +20,7 @@ Wire format (POST ``{base_url}/chat/completions``)::
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -213,6 +214,127 @@ class AIProvider:
             tool_calls=tool_calls,
             finish_reason=choice.get("finish_reason", ""),
             usage=data.get("usage", {}) or {},
+        )
+
+    async def chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        on_delta: Callable[[str], None] | None = None,
+    ) -> ChatResult:
+        """Streaming variant of :meth:`chat` via SSE (``stream: true``).
+
+        Content deltas are forwarded to ``on_delta`` as they arrive. Tool
+        calls are accumulated from streamed fragments (some gateways split
+        a call's name/arguments across chunks) and returned in the same
+        :class:`ChatResult` shape as the non-streaming path. On any stream
+        error (non-200, missing ``data:`` framing, malformed chunks) the
+        error is logged and ``None`` is returned so callers can fall back
+        to the plain request.
+
+        Returns:
+            :class:`ChatResult`, or ``None`` when streaming is unsupported
+            by the endpoint (caller should retry without streaming).
+        """
+        import httpx
+
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.config.ai_temperature,
+            "max_tokens": self.config.ai_max_tokens,
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        url = f"{self.base_url}/chat/completions"
+        content_parts: list[str] = []
+        # tool call accumulation keyed by stream index
+        tc_acc: dict[int, dict[str, Any]] = {}
+        finish_reason = ""
+        usage: dict[str, int] = {}
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.config.timeout_seconds, verify=False  # noqa: S501
+            ) as client, client.stream(
+                "POST", url, json=payload, headers=self._headers()
+            ) as resp:
+                if resp.status_code != 200:
+                    body = (await resp.aread()).decode(errors="replace")
+                    logger.debug(
+                        "Stream failed HTTP %d: %s", resp.status_code, body[:200]
+                    )
+                    return None
+
+                async for line in resp.aiter_lines():
+                    line = line.strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data_str = line[5:].strip()
+                    if not data_str or data_str == "[DONE]":
+                        continue
+                    try:
+                        chunk = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        # Non-SSE junk inside the body — abandon stream
+                        logger.debug("Stream chunk not JSON: %s", data_str[:80])
+                        return None
+                    if not isinstance(chunk, dict):
+                        continue
+                    if chunk.get("usage"):
+                        usage = chunk["usage"]
+                    choices = chunk.get("choices") or [{}]
+                    choice = choices[0] if choices else {}
+                    if choice.get("finish_reason"):
+                        finish_reason = choice["finish_reason"]
+                    delta = choice.get("delta") or {}
+                    if delta.get("content"):
+                        piece = delta["content"]
+                        content_parts.append(piece)
+                        if on_delta is not None:
+                            try:
+                                on_delta(piece)
+                            except Exception:  # noqa: BLE001 — UI callback
+                                logger.debug("on_delta callback raised", exc_info=True)
+                    for tc in delta.get("tool_calls") or []:
+                        idx = int(tc.get("index", 0))
+                        slot = tc_acc.setdefault(
+                            idx, {"id": "", "name": "", "args": ""}
+                        )
+                        if tc.get("id"):
+                            slot["id"] = tc["id"]
+                        fn = tc.get("function") or {}
+                        if fn.get("name"):
+                            slot["name"] = (
+                                slot["name"] + fn["name"]
+                                if slot["name"] and not fn["name"].startswith(slot["name"])
+                                else fn["name"]
+                            )
+                        if fn.get("arguments"):
+                            slot["args"] += fn["arguments"]
+        except httpx.HTTPError as exc:
+            logger.debug("Stream transport error: %s", exc)
+            return None
+
+        tool_calls = []
+        for idx in sorted(tc_acc):
+            slot = tc_acc[idx]
+            try:
+                args = self._parse_arguments(slot["args"] or "{}")
+            except Exception:  # noqa: BLE001 — malformed args fall back to {}
+                args = {}
+            tool_calls.append(
+                ToolCall(id=slot["id"] or f"call_{idx}", name=slot["name"], arguments=args)
+            )
+
+        return ChatResult(
+            content="".join(content_parts) or None,
+            tool_calls=tool_calls,
+            finish_reason=finish_reason or "stop",
+            usage=usage,
         )
 
     @staticmethod

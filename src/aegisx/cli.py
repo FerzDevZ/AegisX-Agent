@@ -209,9 +209,14 @@ def pentest(
     raise typer.Exit(code=0)
 
 
+def _print_delta(piece: str) -> None:
+    """Print one streaming content delta to the terminal as it arrives."""
+    console.out(piece, end="", markup=False, highlight=False, soft_wrap=True)
+
+
 @app.command()
 def agent(
-    target: str = typer.Argument(help="Target URL for the AI to assess"),
+    target: str = typer.Argument(None, help="Target URL for the AI to assess"),
     ai_provider: str = typer.Option(
         "custom", "--ai-provider",
         help="AI preset: custom, deepseek, openai, groq, openrouter, ollama",
@@ -222,6 +227,14 @@ def agent(
     max_iterations: int = typer.Option(25, "--max-iterations", help="Agent loop budget"),
     exploit: bool = typer.Option(False, "--exploit", "-e", help="Authorize exploit verification tools"),
     output: Path = typer.Option(Path("reports/"), "--output", "-o"),
+    continue_id: str | None = typer.Option(
+        None, "--continue", "-c",
+        help="Resume an interrupted agent run by scan ID ('list' shows sessions)",
+    ),
+    stream: bool = typer.Option(
+        False, "--stream", "-s",
+        help="Stream the model's output as it is generated (falls back automatically)",
+    ),
 ) -> None:
     """Autonomous AI-driven pentest — the LLM plans and runs the assessment.
 
@@ -232,9 +245,54 @@ def agent(
     The AI follows a pentest methodology (recon → scan → review →
     verify → report) using tools that are scope-enforced by the harness.
     Add [cyan]--exploit[/] to also authorize exploit-verification tools.
+
+    Interrupted a run? Resume it with [cyan]aegisx agent --continue <scan-id>[/]
+    — list saved sessions with [cyan]aegisx agent --list-sessions[/].
     """
-    if not target.startswith(("http://", "https://")):
+    from aegisx.ai.sessions import SessionStore
+
+    store = SessionStore()
+
+    # --list-sessions mode: show saved runs and exit
+    if continue_id == "list":
+        rows = store.list_sessions(limit=10)
+        if not rows:
+            console.print("[dim]No saved agent sessions.[/]")
+            return
+        table = Table(title="📋 Saved Agent Sessions")
+        table.add_column("Scan ID", style="cyan")
+        table.add_column("Target")
+        table.add_column("Status")
+        table.add_column("Iters", justify="right")
+        table.add_column("Tool Calls", justify="right")
+        table.add_column("Updated")
+        for r in rows:
+            status_style = {
+                "running": "[yellow]running[/]",
+                "done": "[green]done[/]",
+                "budget": "[red]budget[/]",
+                "error": "[red]error[/]",
+            }.get(r["status"], r["status"])
+            table.add_row(
+                r["scan_id"], r["target_url"][:40], status_style,
+                str(r["iterations"]), str(r["tool_calls"]), r["updated_at"][:19],
+            )
+        console.print(table)
+        return
+
+    # Resume mode: load the session, ignore the target argument
+    resuming = bool(continue_id)
+    if resuming:
+        state = store.load(continue_id)
+        if state is None:
+            console.print(f"[red]ERROR[/] No such session: {continue_id}")
+            console.print("[dim]List sessions with: aegisx agent --continue list[/]")
+            raise typer.Exit(code=1)
+        target = state.target_url
+    elif not target or not target.startswith(("http://", "https://")):
         console.print("[red]ERROR[/] Target must start with http:// or https://")
+        console.print("[dim]Resume a run instead: aegisx agent --continue <scan-id>")
+        console.print("[dim]List saved runs:       aegisx agent --continue list[/]")
         raise typer.Exit(code=1)
 
     config = AegisxConfig(
@@ -266,19 +324,37 @@ def agent(
         )
         raise typer.Exit(code=1)
 
+    if stream:
+        bot.on_delta = _print_delta
+
     console.print(
         Panel(
             f"[bold]AegisX Brain[/] — autonomous assessment\n"
             f"Endpoint: [cyan]{bot.provider.base_url}[/]\n"
             f"Model: [cyan]{bot.provider.model}[/]\n"
             f"Max iterations: {config.ai_max_iterations}\n"
-            f"Exploit tools: {'[red]AUTHORIZED[/]' if exploit else '[dim]disabled[/]'}",
-            title="🧠 AI Agent",
+            f"Exploit tools: {'[red]AUTHORIZED[/]' if exploit else '[dim]disabled[/]'}\n"
+            f"Streaming: {'[green]on[/]' if stream else '[dim]off[/]'}",
+            title="🧠 AI Agent" + (" — resuming" if resuming else ""),
             border_style="magenta",
         )
     )
 
-    result = asyncio.run(bot.run())
+    try:
+        result = (
+            asyncio.run(bot.resume(continue_id))
+            if resuming
+            else asyncio.run(bot.run())
+        )
+    except ValueError as exc:
+        console.print(f"[red]ERROR[/] {exc}")
+        raise typer.Exit(code=1) from None
+    except KeyboardInterrupt:
+        console.print(
+            f"\n[yellow]Interrupted.[/] Resume with: "
+            f"[cyan]aegisx agent --continue {bot.context.scan_id}[/]"
+        )
+        raise typer.Exit(code=130) from None
 
     if result.stopped_reason == "error":
         console.print(f"[bold red]Agent failed:[/] {result.error}")
