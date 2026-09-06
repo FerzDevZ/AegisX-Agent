@@ -53,7 +53,9 @@ class AegisxConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="AEGISX_",
-        env_file=".env",
+        env_file=(
+            ".env" if Path(".env").exists() else Path.home() / ".aegisx" / ".env"
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

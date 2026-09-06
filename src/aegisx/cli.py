@@ -217,11 +217,14 @@ def agent(
         report_output=output,
         exploit_verification=exploit,
         ai_provider=ai_provider,
-        ai_base_url=ai_base_url or "",
-        ai_api_key=ai_api_key or "",
-        ai_model=ai_model or "",
         ai_max_iterations=max_iterations,
     )
+    if ai_base_url:
+        config.ai_base_url = ai_base_url
+    if ai_api_key:
+        config.ai_api_key = ai_api_key
+    if ai_model:
+        config.ai_model = ai_model
 
     _print_banner()
 
@@ -293,10 +296,13 @@ def ask(
     config = AegisxConfig(
         target_url=latest.get("target", ""),
         ai_provider=ai_provider,
-        ai_base_url=ai_base_url or "",
-        ai_api_key=ai_api_key or "",
-        ai_model=ai_model or "",
     )
+    if ai_base_url:
+        config.ai_base_url = ai_base_url
+    if ai_api_key:
+        config.ai_api_key = ai_api_key
+    if ai_model:
+        config.ai_model = ai_model
 
     from aegisx.ai.provider import AIProvider, AIProviderError
 
