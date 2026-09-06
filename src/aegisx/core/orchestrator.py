@@ -70,7 +70,7 @@ class AegisxOrchestrator:
         total_phases = 1  # scan always runs
         if self.config.scan_mode in (ScanMode.QUICK, ScanMode.FULL, ScanMode.STEALTH):
             total_phases += 1  # recon
-        if self.config.scan_mode == ScanMode.FULL and self.config.exploit_verification:
+        if self.config.exploit_verification:
             total_phases += 1  # exploit
         total_phases += 1  # report
 
@@ -87,8 +87,10 @@ class AegisxOrchestrator:
         logger.info("[dim]Phase %d/%d: Scanning[/]", current_phase, total_phases)
         await self._phase_scan()
 
-        # Exploit verification (only in full mode with explicit consent)
-        if self.config.scan_mode == ScanMode.FULL and self.config.exploit_verification:
+        # Exploit verification — runs whenever explicitly consented (--exploit).
+        # Previously gated behind ScanMode.FULL, which silently ignored an
+        # explicit --exploit in quick mode; consent alone now decides.
+        if self.config.exploit_verification:
             current_phase += 1
             logger.info("[dim]Phase %d/%d: Exploit Verification[/]", current_phase, total_phases)
             await self._phase_exploit()
