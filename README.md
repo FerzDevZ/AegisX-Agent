@@ -108,6 +108,55 @@ aegisx pentest https://example.com
 aegisx recon https://example.com
 ```
 
+### 🧠 AI Agent Mode (AegisX Brain)
+
+The AI agent turns Aegisx into an **autonomous AI pentester**: an LLM of
+your choice plans the assessment, runs the scanner tools, interprets
+results, and writes the final report.
+
+Works with **any OpenAI-compatible endpoint** — custom base URL + API
+key + model:
+
+```bash
+# Configure once via env (or .env):
+export AEGISX_AI_BASE_URL="https://api.deepseek.com/v1"
+export AEGISX_AI_API_KEY="sk-..."
+export AEGISX_AI_MODEL="deepseek-chat"
+
+# Autonomous AI pentest
+aegisx agent https://example.com
+
+# ...or everything inline with a custom endpoint
+aegisx agent https://example.com \
+  --ai-base-url https://your-gateway/v1 \
+  --ai-api-key sk-... \
+  --ai-model your-model \
+  --max-iterations 30
+
+# Built-in presets: deepseek, openai, groq, openrouter, ollama (local)
+aegisx agent https://example.com --ai-provider ollama
+
+# Test connectivity before running
+aegisx ai-config --base-url https://api.deepseek.com/v1 --api-key sk-... --model deepseek-chat
+
+# Ask questions about the most recent scan
+aegisx ask "explain the critical findings and how to fix them"
+
+# Authorize exploit-verification tools for the agent
+aegisx agent https://example.com --exploit
+```
+
+**Safety rails** (enforced by the harness, not the LLM):
+
+| Guardrail | Behavior |
+|-----------|----------|
+| Scope enforcement | Agent tools reject URLs outside the target scope |
+| Metadata protection | Cloud metadata IPs (169.254.169.254, …) always blocked |
+| Consent gate | Exploit tools only work with `--exploit` |
+| Budget | `--max-iterations` caps the loop; token limits per call |
+
+> The LLM decides *what to do*; the harness decides *what is allowed*.
+
 ### Scan History & Trend Analysis
 
 Every scan is recorded in a local SQLite database, so you can track
@@ -144,6 +193,9 @@ aegisx scan https://example.com --siem events.jsonl
 Commands:
   scan       Scan a target for vulnerabilities
   pentest    Full penetration test with exploit verification
+  agent      Autonomous AI-driven pentest (AegisX Brain)
+  ask        Ask the AI about the most recent scan
+  ai-config  Test AI endpoint connectivity and show config
   recon      Passive reconnaissance — gather target info
   history    Show scan history recorded by previous runs
   plugins    List all available scanner/exploit/reporter plugins

@@ -9,6 +9,7 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 from typing import Any
+import os
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -137,6 +138,36 @@ class AegisxConfig(BaseSettings):
     log_level: str = Field(default="INFO", description="Log level (DEBUG/INFO/WARNING/ERROR)")
     verbose: bool = Field(default=False, description="Enable verbose output")
 
+    # --- AI Agent Settings (AegisX Brain) ---
+    ai_provider: str = Field(
+        default="custom",
+        description="AI provider preset: custom, deepseek, openai, groq, openrouter, ollama",
+    )
+    ai_base_url: str = Field(
+        default="",
+        description="OpenAI-compatible chat completions base URL (overrides preset)",
+    )
+    ai_api_key: str = Field(
+        default="",
+        description="API key for the AI provider (keep secret; prefer AEGISX_AI_API_KEY env var)",
+    )
+    ai_model: str = Field(
+        default="",
+        description="Model name (overrides preset default)",
+    )
+    ai_max_iterations: int = Field(
+        default=25, ge=1, le=100,
+        description="Max agent loop iterations per run",
+    )
+    ai_max_tokens: int = Field(
+        default=4_000, ge=256, le=32_000,
+        description="Max tokens per LLM completion",
+    )
+    ai_temperature: float = Field(
+        default=0.2, ge=0.0, le=2.0,
+        description="LLM temperature (low = deterministic tool use)",
+    )
+
     @field_validator("scope")
     @classmethod
     def validate_scope(cls, v: list[str]) -> list[str]:
@@ -149,6 +180,44 @@ class AegisxConfig(BaseSettings):
                     f"Scope entries should be domains, not full URLs: {entry}"
                 )
         return v
+
+    def resolve_ai_endpoint(self) -> tuple[str, str, str]:
+        """Resolve the effective AI endpoint as ``(base_url, api_key, model)``.
+
+        Precedence: explicit fields > provider preset > defaults.
+        Raises ValueError for unknown presets.
+        """
+        presets: dict[str, tuple[str, str, str]] = {
+            # preset: (base_url, env_var_suffix, default_model)
+            "custom": ("", "AEGISX_AI_API_KEY", ""),
+            "deepseek": ("https://api.deepseek.com/v1", "AEGISX_AI_API_KEY", "deepseek-chat"),
+            "openai": ("https://api.openai.com/v1", "AEGISX_AI_API_KEY", "gpt-4o-mini"),
+            "groq": ("https://api.groq.com/openai/v1", "AEGISX_AI_API_KEY", "llama-3.3-70b-versatile"),
+            "openrouter": ("https://openrouter.ai/api/v1", "AEGISX_AI_API_KEY", "openai/gpt-4o-mini"),
+            "ollama": ("http://localhost:11434/v1", "AEGISX_AI_API_KEY", "llama3.1"),
+        }
+        if self.ai_provider not in presets:
+            raise ValueError(
+                f"Unknown AI provider preset: {self.ai_provider!r}. "
+                f"Valid: {', '.join(sorted(presets))}"
+            )
+
+        base_url, _env_suffix, default_model = presets[self.ai_provider]
+        base_url = self.ai_base_url or base_url
+        if not base_url:
+            raise ValueError(
+                "AI base URL is not configured. Set AEGISX_AI_BASE_URL "
+                "or use --ai-base-url, or pick a preset with --ai-provider."
+            )
+        base_url = base_url.rstrip("/")
+
+        api_key = self.ai_api_key or os.environ.get("AEGISX_AI_API_KEY", "")
+        model = self.ai_model or default_model
+        if not model:
+            raise ValueError(
+                "AI model is not configured. Set AEGISX_AI_MODEL or use --ai-model."
+            )
+        return base_url, api_key, model
 
     def is_in_scope(self, url: str) -> bool:
         """Check if a URL falls within the authorized scan scope."""

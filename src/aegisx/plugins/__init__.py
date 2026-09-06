@@ -65,6 +65,26 @@ class PluginManager:
         """Get an exploit class by name."""
         return self._exploit_classes.get(name)
 
+    def get_exploit_for_finding(self, finding) -> str | None:
+        """Find the first registered exploit that can verify this finding.
+
+        Matching is done via the exploit's ``supported_cwes`` against the
+        finding's ``cwe_id``.
+
+        Args:
+            finding: A Finding instance with ``cwe_id`` set.
+
+        Returns:
+            Exploit name, or None when no module matches.
+        """
+        cwe = getattr(finding, "cwe_id", "")
+        if not cwe:
+            return None
+        for name, exploit_cls in self._exploit_classes.items():
+            if cwe in getattr(exploit_cls, "supported_cwes", []):
+                return name
+        return None
+
     def get_reporter(self, name: str) -> type[BaseReporter] | None:
         """Get a reporter class by name."""
         return self._reporter_classes.get(name)

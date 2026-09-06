@@ -11,7 +11,9 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -188,6 +190,185 @@ def pentest(
     if stats.high_count > 0:
         raise typer.Exit(code=1)
     raise typer.Exit(code=0)
+
+
+@app.command()
+def agent(
+    target: str = typer.Argument(help="Target URL for the AI to assess"),
+    ai_provider: str = typer.Option(
+        "custom", "--ai-provider",
+        help="AI preset: custom, deepseek, openai, groq, openrouter, ollama",
+    ),
+    ai_base_url: Optional[str] = typer.Option(None, "--ai-base-url", help="OpenAI-compatible base URL"),
+    ai_api_key: Optional[str] = typer.Option(None, "--ai-api-key", help="AI API key (or set AEGISX_AI_API_KEY)"),
+    ai_model: Optional[str] = typer.Option(None, "--ai-model", help="Model name"),
+    max_iterations: int = typer.Option(25, "--max-iterations", help="Agent loop budget"),
+    exploit: bool = typer.Option(False, "--exploit", "-e", help="Authorize exploit verification tools"),
+    output: Path = typer.Option(Path("reports/"), "--output", "-o"),
+) -> None:
+    """Autonomous AI-driven pentest: the LLM plans and runs the assessment."""
+    if not target.startswith(("http://", "https://")):
+        console.print("[red]ERROR[/] Target must start with http:// or https://")
+        raise typer.Exit(code=1)
+
+    config = AegisxConfig(
+        target_url=target,
+        scan_mode=ScanMode.QUICK,
+        report_output=output,
+        exploit_verification=exploit,
+        ai_provider=ai_provider,
+        ai_base_url=ai_base_url or "",
+        ai_api_key=ai_api_key or "",
+        ai_model=ai_model or "",
+        ai_max_iterations=max_iterations,
+    )
+
+    _print_banner()
+
+    from aegisx.ai import AegisxAgent
+
+    try:
+        bot = AegisxAgent(config)
+    except ValueError as exc:
+        console.print(f"[red]AI config error:[/] {exc}")
+        console.print(
+            "[dim]Set AEGISX_AI_BASE_URL / AEGISX_AI_API_KEY / AEGISX_AI_MODEL "
+            "or use --ai-provider deepseek (etc.)[/]"
+        )
+        raise typer.Exit(code=1)
+
+    console.print(
+        Panel(
+            f"[bold]AegisX Brain[/] — autonomous assessment\n"
+            f"Endpoint: [cyan]{bot.provider.base_url}[/]\n"
+            f"Model: [cyan]{bot.provider.model}[/]\n"
+            f"Max iterations: {config.ai_max_iterations}\n"
+            f"Exploit tools: {'[red]AUTHORIZED[/]' if exploit else '[dim]disabled[/]'}",
+            title="🧠 AI Agent",
+            border_style="magenta",
+        )
+    )
+
+    result = asyncio.run(bot.run())
+
+    if result.stopped_reason == "error":
+        console.print(f"[bold red]Agent failed:[/] {result.error}")
+        raise typer.Exit(code=1)
+
+    console.print(f"\n[dim]Iterations: {result.iterations_used}, "
+                  f"tool calls: {result.tool_calls_made}, "
+                  f"stopped: {result.stopped_reason}[/]\n")
+    console.print(Panel(result.final_message or "(no summary)", title="📋 AI Assessment"))
+
+
+@app.command()
+def ask(
+    question: str = typer.Argument(help="Question about the most recent scan"),
+    ai_provider: str = typer.Option("custom", "--ai-provider", help="AI preset"),
+    ai_base_url: Optional[str] = typer.Option(None, "--ai-base-url"),
+    ai_api_key: Optional[str] = typer.Option(None, "--ai-api-key"),
+    ai_model: Optional[str] = typer.Option(None, "--ai-model"),
+) -> None:
+    """Ask the AI about the most recent scan history entry."""
+    from aegisx.utils.history import ScanHistory
+
+    db = ScanHistory()
+    scans = db.get_scans(limit=1)
+    if not scans:
+        console.print("[yellow]No scan history found.[/] Run `aegisx scan <target>` first.")
+        raise typer.Exit(code=1)
+
+    latest = db.get_scan(scans[0]["scan_id"])
+    scan_summary = json.dumps(
+        {
+            "target": latest.get("target"),
+            "mode": latest.get("mode"),
+            "timestamp": latest.get("timestamp"),
+            "findings": latest.get("findings", [])[:20],
+        },
+        ensure_ascii=False,
+        default=str,
+    )
+
+    config = AegisxConfig(
+        target_url=latest.get("target", ""),
+        ai_provider=ai_provider,
+        ai_base_url=ai_base_url or "",
+        ai_api_key=ai_api_key or "",
+        ai_model=ai_model or "",
+    )
+
+    from aegisx.ai.provider import AIProvider, AIProviderError
+
+    try:
+        provider = AIProvider(config)
+    except ValueError as exc:
+        console.print(f"[red]AI config error:[/] {exc}")
+        raise typer.Exit(code=1)
+
+    console.print(f"[dim]Asking {provider.model} about {latest.get('target')}…[/]")
+    try:
+        chat = asyncio.run(
+            provider.chat(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a senior security analyst. Answer questions "
+                            "about the scan result provided. Be precise and cite "
+                            "finding IDs. JSON scan data follows."
+                        ),
+                    },
+                    {"role": "user", "content": f"Scan data:\n{scan_summary}\n\nQuestion: {question}"},
+                ]
+            )
+        )
+    except AIProviderError as exc:
+        console.print(f"[bold red]AI error:[/] {exc}")
+        raise typer.Exit(code=1)
+
+    console.print(Panel(chat.content or "(no answer)", title="🧠 Answer"))
+
+
+@app.command("ai-config")
+def ai_config(
+    base_url: Optional[str] = typer.Option(None, "--base-url", help="Base URL to test"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", help="API key to test"),
+    model: Optional[str] = typer.Option(None, "--model", help="Model to test"),
+    provider: str = typer.Option("custom", "--provider", help="Preset to test"),
+) -> None:
+    """Test AI endpoint connectivity and show the config that will be used."""
+    from aegisx.ai.provider import AIProvider
+
+    config = AegisxConfig(
+        target_url="https://config-check.invalid",
+        ai_provider=provider,
+        ai_base_url=base_url or "",
+        ai_api_key=api_key or "",
+        ai_model=model or "",
+    )
+    try:
+        bot = AIProvider(config)
+    except ValueError as exc:
+        console.print(f"[red]Config error:[/] {exc}")
+        raise typer.Exit(code=1)
+
+    table = Table(title="🧠 AI Provider Configuration", border_style="magenta")
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value")
+    table.add_row("Provider", config.ai_provider)
+    table.add_row("Base URL", bot.base_url)
+    table.add_row("Model", bot.model)
+    table.add_row("API Key", (bot.api_key[:4] + "…") if bot.api_key else "(none — local endpoint?)")
+    console.print(table)
+
+    console.print("[dim]Testing connectivity…[/]")
+    ok, detail = asyncio.run(bot.health_check())
+    if ok:
+        console.print(f"[green]✓ AI endpoint reachable[/] — {detail}")
+    else:
+        console.print(f"[red]✗ AI endpoint failed[/] — {detail}")
+        raise typer.Exit(code=1)
 
 
 @app.command()

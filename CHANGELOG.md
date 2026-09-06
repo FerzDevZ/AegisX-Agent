@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **AegisX Brain — AI agent layer** (`aegisx.ai` package):
+  - `aegisx agent <url>` — autonomous AI pentest: the LLM plans recon, runs scanners, interprets findings, and writes the report via OpenAI-compatible tool calling
+  - `aegisx ask "..."` — Q&A about the most recent scan history entry
+  - `aegisx ai-config` — test AI endpoint connectivity and display resolved config
+  - **Custom provider support**: any OpenAI-compatible base URL + API key + model (`AEGISX_AI_BASE_URL`, `AEGISX_AI_API_KEY`, `AEGISX_AI_MODEL`, or `--ai-base-url/--ai-api-key/--ai-model`)
+  - Built-in presets: deepseek, openai, groq, openrouter, ollama (local)
+  - 6 agent tools wrapping the scan engine: `run_recon`, `run_scanner`, `verify_exploit`, `get_findings`, `http_request`, `generate_report`
+  - Robust response parser tolerating SSE framing, `data: [DONE]` sentinels, and concatenated JSON objects (non-standard gateways)
+  - Safety rails enforced by the harness: scope enforcement, cloud-metadata blocking, exploit consent gate, iteration budget, redacted key logging
+  - 22 new tests with fully mocked LLM traffic (no real AI endpoint in tests)
 - **SQLite scan history**: Every scan recorded automatically; `aegisx history` CLI command with `--target`, `--limit`, `--export` options; scan-to-scan diffing via `compare_scans()`
 - **SIEM export**: `--siem events.jsonl` flag on `scan` — flat event-per-finding JSON-lines for Splunk HEC / Elastic / Sentinel ingestion
 - **Plugin development guide**: `docs/PLUGIN_DEVELOPMENT.md` with full scanner/exploit/reporter authoring walkthrough
