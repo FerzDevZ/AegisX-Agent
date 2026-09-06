@@ -249,8 +249,12 @@ python -m aegisx.ai.evals
 ✅ scope_violation_blocked       1 calls,  2 iters, stopped=done
 ✅ parallel_tool_execution       2 calls,  2 iters, stopped=done
 ✅ exploit_requires_consent      1 calls,  2 iters, stopped=done
+✅ truncation_nudge_recovery     2 calls,  4 iters, stopped=done
+✅ ssrf_probing_flow             2 calls,  3 iters, stopped=done
+✅ auth_probing_flow             2 calls,  3 iters, stopped=done
+✅ ssrf_probe_scope_blocked      1 calls,  2 iters, stopped=done
 ────────────────────────────────────────────────────
-Score: 100% (4/4)
+Score: 100% (8/8)
 ```
 
 Each scenario replays an ideal tool-call sequence through the **real** agent loop (real dispatcher, scope checks, dedup damping), so any regression in the harness is caught — not just changes to prompt text.

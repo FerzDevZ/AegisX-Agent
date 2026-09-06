@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Eval scenarios for the probing tools** (8 builtin scenarios total): `ssrf_probing_flow`, `auth_probing_flow`, and `ssrf_probe_scope_blocked` keep the probe_ssrf/probe_auth tool flows and their scope enforcement regression-tested
+
 - **AI agent auth probing** (`probe_auth` tool, 9 tools total): the Brain mines in-scope pages for JWTs, session identifiers, and OAuth links, receives decoded token facts (algorithm, expiry, sensitive claim names, OAuth `state`/`redirect_uri` presence) to reason about, and auto-registers findings (CWE-347/613/312/598/352/601); methodology prompt gains a dedicated AUTH step
 
 - **Auth scanner** (`auth_scanner`, enabled by default — 7 scanners total):

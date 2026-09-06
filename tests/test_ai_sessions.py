@@ -593,3 +593,42 @@ class TestNudgeEvalScenario:
         )
         result = await EvalRunner().run_scenario(scenario)
         assert result.passed, result.checks
+
+
+class TestProbingEvalScenarios:
+    """probe_ssrf / probe_auth flows are regression-tested in the harness."""
+
+    def test_probing_scenarios_registered(self):
+        names = {s.name for s in BUILTIN_SCENARIOS}
+        assert {"ssrf_probing_flow", "auth_probing_flow", "ssrf_probe_scope_blocked"} <= names
+
+    @pytest.mark.asyncio
+    async def test_ssrf_probing_flow_passes(self):
+        from aegisx.ai.evals import EvalRunner
+
+        scenario = next(
+            s for s in BUILTIN_SCENARIOS if s.name == "ssrf_probing_flow"
+        )
+        result = await EvalRunner().run_scenario(scenario)
+        assert result.passed, result.checks
+
+    @pytest.mark.asyncio
+    async def test_auth_probing_flow_passes(self):
+        from aegisx.ai.evals import EvalRunner
+
+        scenario = next(
+            s for s in BUILTIN_SCENARIOS if s.name == "auth_probing_flow"
+        )
+        result = await EvalRunner().run_scenario(scenario)
+        assert result.passed, result.checks
+
+    @pytest.mark.asyncio
+    async def test_ssrf_scope_block_scenario_passes(self):
+        from aegisx.ai.evals import EvalRunner
+
+        scenario = next(
+            s for s in BUILTIN_SCENARIOS if s.name == "ssrf_probe_scope_blocked"
+        )
+        result = await EvalRunner().run_scenario(scenario)
+        assert result.passed, result.checks
+        assert result.checks.get("scope_violation_blocked") is True
