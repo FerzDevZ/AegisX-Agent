@@ -12,7 +12,11 @@ from typing import Any
 import os
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    DotEnvSettingsSource,
+    SettingsConfigDict,
+)
 
 
 class ScanMode(str, Enum):
@@ -53,9 +57,7 @@ class AegisxConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="AEGISX_",
-        env_file=(
-            ".env" if Path(".env").exists() else Path.home() / ".aegisx" / ".env"
-        ),
+        env_file=None,  # dotenv sources are customized below
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -220,6 +222,41 @@ class AegisxConfig(BaseSettings):
                 "AI model is not configured. Set AEGISX_AI_MODEL or use --ai-model."
             )
         return base_url, api_key, model
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: Any,
+        env_settings: Any,
+        dotenv_settings: Any,
+        file_secret_settings: Any,
+    ) -> tuple[Any, ...]:
+        """Layered dotenv loading with per-key precedence.
+
+        Priority (highest wins per key):
+        1. init kwargs / env vars (built-in sources)
+        2. ``./.env``  — per-project override
+        3. ``~/.aegisx/.env`` — global base config
+
+        This makes the installed CLI work from any working directory
+        while still honoring per-project overrides.
+        """
+        home_env = DotEnvSettingsSource(
+            settings_cls,
+            env_file=Path.home() / ".aegisx" / ".env",
+        )
+        project_env = DotEnvSettingsSource(
+            settings_cls,
+            env_file=".env",
+        )
+        return (
+            init_settings,
+            env_settings,
+            project_env,
+            home_env,
+            file_secret_settings,
+        )
 
     def is_in_scope(self, url: str) -> bool:
         """Check if a URL falls within the authorized scan scope."""
