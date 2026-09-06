@@ -4,6 +4,26 @@ from __future__ import annotations
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _isolate_config_env(monkeypatch):
+    """Keep tests hermetic: never load a developer's real ~/.aegisx/.env.
+
+    AegisxConfig falls back to the home-directory .env so the installed
+    CLI works anywhere; tests must not inherit those values.
+    """
+    from aegisx.core import config as config_module
+
+    monkeypatch.setattr(
+        config_module.AegisxConfig,
+        "model_config",
+        {
+            **config_module.AegisxConfig.model_config,
+            "env_file": None,
+        },
+    )
+    yield
+
 from aegisx.core.config import AegisxConfig, ReportFormat, ScanMode, Severity
 from aegisx.core.context import Finding, ScanContext
 
