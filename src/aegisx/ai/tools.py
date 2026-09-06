@@ -13,6 +13,7 @@ import json
 from typing import Any
 from urllib.parse import urlparse
 
+from aegisx.ai.redaction import redact
 from aegisx.core.config import AegisxConfig
 from aegisx.core.context import ScanContext
 from aegisx.utils.logger import get_logger
@@ -100,6 +101,16 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "generate_report",
         "Generate the final report. Always call this as the last step.",
         {"format": {"type": "string", "enum": ["markdown", "json", "sarif", "html"]}},
+    ),
+    _f(
+        "compare_history",
+        "Compare two previous scans of this target and report new, resolved, "
+        "and changed findings. Without arguments, compares the two most "
+        "recent scans recorded in history.",
+        {
+            "old_scan_id": {"type": "string", "description": "Baseline scan ID (optional)"},
+            "new_scan_id": {"type": "string", "description": "Latest scan ID (optional)"},
+        },
     ),
 ]
 
@@ -280,6 +291,48 @@ class ToolDispatcher:
             {"format": fmt_name, "files": files, "directory": str(self.config.report_output)}
         )
 
+    async def _tool_compare_history(self, args: dict[str, Any]) -> str:
+        """Diff two historical scans (default: two most recent for this target)."""
+        from aegisx.utils.history import ScanHistory
+
+        history = ScanHistory()
+        old_id = args.get("old_scan_id") or None
+        new_id = args.get("new_scan_id") or None
+
+        if not (old_id and new_id):
+            target = self.config.target_url
+            recent = history.get_scans(target=target, limit=2)
+            if len(recent) < 2:
+                # Fall back to any two most recent scans overall
+                recent = history.get_scans(limit=2)
+            if len(recent) < 2:
+                return json.dumps(
+                    {
+                        "error": "Need at least 2 recorded scans to compare. "
+                        "Run 'aegisx scan' first, or pass old_scan_id/new_scan_id.",
+                    }
+                )
+            old_id = old_id or recent[1]["scan_id"]
+            new_id = new_id or recent[0]["scan_id"]
+
+        diff = history.compare_scans(old_id, new_id)
+        return json.dumps(
+            {
+                "old_scan": old_id,
+                "new_scan": new_id,
+                "severity_delta": diff.get("severity_delta", {}),
+                "new_findings": [
+                    {"title": f.get("title"), "severity": f.get("severity")}
+                    for f in diff.get("new_findings", [])
+                ],
+                "resolved_findings": [
+                    {"title": f.get("title"), "severity": f.get("severity")}
+                    for f in diff.get("resolved_findings", [])
+                ],
+            },
+            ensure_ascii=False,
+        )
+
     # --- dispatch ----------------------------------------------------------
 
     async def execute(self, name: str, args: dict[str, Any]) -> str:
@@ -296,6 +349,7 @@ class ToolDispatcher:
             "get_findings": self._tool_get_findings,
             "http_request": self._tool_http_request,
             "generate_report": self._tool_generate_report,
+            "compare_history": self._tool_compare_history,
         }
         handler = handlers.get(name)
         if handler is None:
@@ -331,6 +385,9 @@ class ToolDispatcher:
         except Exception as exc:  # noqa: BLE001 — tool errors go back to the LLM
             logger.debug("Tool %s failed: %s", name, exc)
             return json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+
+        # Never let live credentials reach the LLM provider
+        output = redact(output)
 
         self._results[key] = output
         return output

@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **AegisX Brain hardening batch (agent upgrades #1–#8)**:
+  - **Secret redaction** (`ai/redaction.py`): AWS keys, OpenAI/Anthropic-style keys, GitHub tokens, JWTs, private key blocks (including truncated ones), DB connection strings, and generic key=value secrets are masked as `[REDACTED:<label>]` before any tool output reaches the LLM provider
+  - **Retry with exponential backoff** in the provider: network errors, HTTP 429, and 5xx are retried (3 attempts, 1s→2s→4s); client errors (4xx) fail fast
+  - **Transcript auto-save**: every agent run writes its full message transcript plus token/iteration stats to `reports/.audit/agent-transcript-*.json` for auditability
+  - **Parallel tool execution**: multiple tool calls in one assistant turn run concurrently (`asyncio.gather`, capped at 4) with results paired back in protocol order
+  - **Context digest on trim**: when the message history is trimmed, older tool results are folded into a `[CONTEXT DIGEST]` block instead of being dropped — the model retains what it learned
+  - **Token meter**: prompt/completion/total token usage aggregated across the run and logged at the end
+  - **New tool `compare_history`**: the agent can diff two previous scans (new/resolved findings + severity delta) without arguments, defaulting to the two most recent scans
+  - **Agent eval harness** (`ai/evals.py`, `python -m aegisx.ai.evals`): 4 builtin scripted scenarios (full pipeline, scope-violation blocking, parallel tools, exploit consent gate) run through the real agent loop with a mock provider and are scored automatically — regression harness for prompts and models
+  - `AEGISX_HISTORY_DB` env var to relocate the history database (also used to keep tests hermetic)
+  - 21 new tests (total 255) + eval harness scenarios
+
 - **AegisX Brain — AI agent layer** (`aegisx.ai` package):
   - `aegisx agent <url>` — autonomous AI pentest: the LLM plans recon, runs scanners, interprets findings, and writes the report via OpenAI-compatible tool calling
   - `aegisx ask "..."` — Q&A about the most recent scan history entry

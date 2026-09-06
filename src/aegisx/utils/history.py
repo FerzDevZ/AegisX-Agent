@@ -21,6 +21,7 @@ scans table:
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -62,7 +63,9 @@ class ScanHistory:
                 ``~/.aegisx/history.db``.
         """
         if db_path is None:
-            db_path = Path.home() / ".aegisx" / "history.db"
+            db_path = os.environ.get("AEGISX_HISTORY_DB") or (
+                Path.home() / ".aegisx" / "history.db"
+            )
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 

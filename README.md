@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
   <img src="https://img.shields.io/badge/OWASP-Top%2010-red" alt="OWASP">
   <img src="https://img.shields.io/badge/CVSS-v3.1-orange" alt="CVSS">
-  <img src="https://img.shields.io/badge/tests-234%20passing-brightgreen?logo=pytest&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-255%20passing-brightgreen?logo=pytest&logoColor=white" alt="Tests">
   <img src="https://img.shields.io/badge/CI-GitHub%20Actions-blue?logo=githubactions&logoColor=white" alt="CI">
   <img src="https://img.shields.io/badge/Status-Alpha-purple" alt="Status">
 </p>
@@ -218,7 +218,39 @@ The harness — not the LLM — enforces these, and they are unit-tested:
 | Consent gate | `verify_exploit` requires the `--exploit` flag |
 | Iteration budget | `--max-iterations` (default 25) caps the loop |
 | Duplicate damping | Repeated identical tool calls are cached, annotated, then blocked |
+| **Secret redaction** | Tool output is scanned before it leaves the machine — AWS keys, GitHub tokens, JWTs, private keys, DB connection strings and generic `key=value` secrets are replaced with `[REDACTED:<label>]` |
 | Key hygiene | API keys are never logged in full |
+| Retry policy | Transient failures (network, 429, 5xx) are retried with exponential backoff; client errors fail fast |
+
+#### Reliability & Observability
+
+| Feature | Detail |
+|---------|--------|
+| Parallel tools | Multiple tool calls in one turn execute concurrently (capped at 4), results paired in protocol order |
+| Context digest | When history is trimmed, older tool results are condensed into a `[CONTEXT DIGEST]` block instead of dropped |
+| Token meter | Prompt/completion/total tokens are aggregated per run and logged at the end |
+| Audit transcripts | Every agent run writes its full transcript to `reports/.audit/agent-transcript-*.json` |
+
+#### Agent Evals
+
+Score the agent against scripted scenarios without touching a live model:
+
+```bash
+python -m aegisx.ai.evals
+```
+
+```
+🧪 Agent Eval Report
+────────────────────────────────────────────────────
+✅ full_pipeline                 4 calls,  5 iters, stopped=done
+✅ scope_violation_blocked       1 calls,  2 iters, stopped=done
+✅ parallel_tool_execution       2 calls,  2 iters, stopped=done
+✅ exploit_requires_consent      1 calls,  2 iters, stopped=done
+────────────────────────────────────────────────────
+Score: 100% (4/4)
+```
+
+Each scenario replays an ideal tool-call sequence through the **real** agent loop (real dispatcher, scope checks, dedup damping), so any regression in the harness is caught — not just changes to prompt text.
 
 ---
 
@@ -421,7 +453,7 @@ print(stats.total_findings, stats.critical_count)
 ## 🧪 Testing
 
 ```bash
-pytest -v                                  # 234 tests
+pytest -v                                  # 255 tests
 pytest --cov=aegisx --cov-report=term      # with coverage
 ruff check src tests                       # lint
 mypy src/aegisx                            # types

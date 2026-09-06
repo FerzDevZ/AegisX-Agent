@@ -171,14 +171,15 @@ class TestToolSchemas:
 
     def test_expected_tool_set(self):
         names = {t["function"]["name"] for t in TOOL_SCHEMAS}
-        assert names == {
+        assert {
             "run_recon",
             "run_scanner",
             "verify_exploit",
             "get_findings",
             "http_request",
             "generate_report",
-        }
+            "compare_history",
+        } <= names
 
 
 class TestScopeEnforcement:

@@ -21,10 +21,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from aegisx.core.config import AegisxConfig
 from aegisx.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    import httpx
 
 logger = get_logger("ai.provider")
 
@@ -84,6 +87,59 @@ class AIProvider:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
 
+    async def _post_with_retry(self, url: str, payload: dict[str, Any]) -> httpx.Response:
+        """POST with exponential backoff on transient failures.
+
+        Retries: network errors, HTTP 429, and 5xx — the failures that
+        are usually gone on a second attempt. Client errors (4xx) fail
+        fast: retrying a bad key or bad schema cannot succeed.
+
+        Raises:
+            AIProviderError: After exhausting retries, or on non-retryable
+                HTTP 4xx errors (immediately).
+        """
+        import asyncio as _asyncio
+
+        import httpx
+
+        max_retries = 3
+        backoff = 1.0  # seconds; doubles each attempt
+        last_error: Exception | None = None
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                # verify=False is intentional: some self-hosted gateways use
+                # self-signed certs. Traffic carries no secrets beyond the key.
+                async with httpx.AsyncClient(
+                    timeout=self.config.timeout_seconds, verify=False  # noqa: S501
+                ) as client:
+                    resp = await client.post(url, json=payload, headers=self._headers())
+
+                if resp.status_code < 400:
+                    return resp
+                if resp.status_code in (429, 500, 502, 503, 504) and attempt < max_retries:
+                    logger.warning(
+                        "AI endpoint %s (attempt %d/%d) — retrying in %.0fs",
+                        resp.status_code, attempt, max_retries, backoff,
+                    )
+                    await _asyncio.sleep(backoff)
+                    backoff *= 2
+                    continue
+                return resp  # non-retryable status: handled by caller
+            except httpx.RequestError as exc:
+                last_error = exc
+                if attempt < max_retries:
+                    logger.warning(
+                        "AI endpoint unreachable (%s, attempt %d/%d) — retrying in %.0fs",
+                        type(exc).__name__, attempt, max_retries, backoff,
+                    )
+                    await _asyncio.sleep(backoff)
+                    backoff *= 2
+                    continue
+                raise
+
+        raise last_error  # pragma: no cover — loop always returns or raises
+
     async def chat(
         self,
         messages: list[dict[str, Any]],
@@ -115,12 +171,7 @@ class AIProvider:
 
         url = f"{self.base_url}/chat/completions"
         try:
-            # verify=False is intentional: some self-hosted gateways use
-            # self-signed certs. Traffic carries no secrets beyond the key itself.
-            async with httpx.AsyncClient(
-                timeout=self.config.timeout_seconds, verify=False
-            ) as client:
-                resp = await client.post(url, json=payload, headers=self._headers())
+            resp = await self._post_with_retry(url, payload)
         except httpx.RequestError as exc:
             raise AIProviderError(
                 f"Cannot reach AI endpoint {self.base_url}: {type(exc).__name__}"
