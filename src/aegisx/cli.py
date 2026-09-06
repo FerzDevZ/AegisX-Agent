@@ -28,8 +28,20 @@ from aegisx.plugins import get_plugin_manager
 
 app = typer.Typer(
     name="aegisx",
-    help="🛡️ Aegisx-Agent — Autonomous Security Scanner",
+    help=(
+        "🛡️ [bold]Aegisx-Agent[/] — Autonomous AI-Powered Security Scanner\n\n"
+        "Three-phase pipeline: recon → scan → verify → report.\n"
+        "Optional AI agent mode: bring your own OpenAI-compatible LLM.\n\n"
+        "[dim]Common tasks:[/]\n"
+        "  Quick scan:            [cyan]aegisx scan https://example.com[/]\n"
+        "  Everything:            [cyan]aegisx pentest https://example.com[/]\n"
+        "  AI pentest:            [cyan]aegisx agent https://example.com[/]\n"
+        "  Setup AI (first time): [cyan]aegisx ai-config[/]\n"
+        "  Past scans:            [cyan]aegisx history[/]\n\n"
+        "[dim]Run 'aegisx COMMAND --help' for detailed options.[/]"
+    ),
     no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
     rich_markup_mode="rich",
 )
 console = Console()
@@ -140,10 +152,15 @@ def pentest(
     output: Path = typer.Option(Path("reports/"), "--output", "-o"),
     verbose: bool = typer.Option(True, "--verbose", "-v"),
 ) -> None:
-    """Full penetration test with exploit verification.
+    """Full penetration test: all scanners + exploit verification + all reports.
 
-    This runs a comprehensive scan with ALL scanners enabled and
-    exploit verification turned on. Use only on authorized targets.
+    Runs every scanner (web, secret, config, dependency), then attempts
+    to verify each finding with the exploit modules (SQLi, XSS, CSRF,
+    SSRF), and finally generates all four report formats.
+
+    Exploit verification is always ON here — you will be asked to
+    confirm authorization before anything runs. Equivalent to:
+    [cyan]aegisx scan <target> --mode full --exploit --report all[/]
     """
     if not target.startswith(("http://", "https://")):
         console.print("[red]ERROR[/] Target must start with http:// or https://")
@@ -206,7 +223,16 @@ def agent(
     exploit: bool = typer.Option(False, "--exploit", "-e", help="Authorize exploit verification tools"),
     output: Path = typer.Option(Path("reports/"), "--output", "-o"),
 ) -> None:
-    """Autonomous AI-driven pentest: the LLM plans and runs the assessment."""
+    """Autonomous AI-driven pentest — the LLM plans and runs the assessment.
+
+    Requires an AI endpoint: set AEGISX_AI_BASE_URL / AEGISX_AI_API_KEY /
+    AEGISX_AI_MODEL (or use --ai-* flags / --ai-provider presets).
+    Verify setup first with: [cyan]aegisx ai-config[/]
+
+    The AI follows a pentest methodology (recon → scan → review →
+    verify → report) using tools that are scope-enforced by the harness.
+    Add [cyan]--exploit[/] to also authorize exploit-verification tools.
+    """
     if not target.startswith(("http://", "https://")):
         console.print("[red]ERROR[/] Target must start with http:// or https://")
         raise typer.Exit(code=1)
@@ -272,7 +298,11 @@ def ask(
     ai_api_key: Optional[str] = typer.Option(None, "--ai-api-key"),
     ai_model: Optional[str] = typer.Option(None, "--ai-model"),
 ) -> None:
-    """Ask the AI about the most recent scan history entry."""
+    """Ask the AI about the most recent scan history entry.
+
+    Example: [cyan]aegisx ask \"which finding should I fix first?\"[/]
+    Requires an AI endpoint — see [cyan]aegisx ai-config[/].
+    """
     from aegisx.utils.history import ScanHistory
 
     db = ScanHistory()

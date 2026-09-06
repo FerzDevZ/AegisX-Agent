@@ -53,6 +53,29 @@ class Finding:
         }
         return order.get(self.severity, 0)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the finding for history storage and JSON reports."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "severity": self.severity.value,
+            "cvss_score": self.cvss_score,
+            "cvss_vector": self.cvss_vector,
+            "cwe_id": self.cwe_id,
+            "owasp_category": self.owasp_category,
+            "url": self.url,
+            "endpoint": self.endpoint,
+            "method": self.method,
+            "parameter": self.parameter,
+            "evidence": self.evidence,
+            "payload": self.payload,
+            "remediation": self.remediation,
+            "references": self.references,
+            "scanner_name": self.scanner_name,
+            "timestamp": self.timestamp,
+        }
+
 
 @dataclass
 class ExploitResult:
