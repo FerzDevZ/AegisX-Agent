@@ -6,10 +6,10 @@ All security-sensitive values (API keys, credentials) come from environment only
 
 from __future__ import annotations
 
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Any
-import os
 
 from pydantic import Field, field_validator
 from pydantic_settings import (
@@ -88,6 +88,7 @@ class AegisxConfig(BaseSettings):
             "config_scanner",
             "dependency_scanner",
             "network_scanner",
+            "ssrf_scanner",
         ],
         description="List of scanner modules to enable",
     )

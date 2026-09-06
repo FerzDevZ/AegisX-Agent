@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **SSRF detection scanner** (`ssrf_scanner`, enabled by default):
+  - Discovers URL-taking parameters (40+ canonical names: `url`, `next`, `redirect`, `callback`, `fetch`, …) across crawled pages
+  - **Open-redirect detection** (CWE-601, MEDIUM): probes parameters with a benign external value; flags 3xx responses redirecting off-origin
+  - **Blind-SSRF detection** (CWE-918, HIGH): injects internal-URL values and matches response signatures of server-side fetch attempts (connection refused, getaddrinfo, /etc/passwd echoes, service banners)
+  - Pairs with the existing `ssrf_exploit` verifier for confirmed exploitation
+  - All probe requests stay within the authorized scan scope
+  - 15 new tests (286 total)
+
 - **Agent session resume**: every agent iteration is atomically checkpointed to `~/.aegisx/sessions/<scan-id>.json`; interrupted runs (Ctrl-C, network loss) resume with `aegisx agent --continue <scan-id>` — message history, counters, and token usage are restored and no tool is re-executed. List saved sessions with `aegisx agent --continue list`
 - **Streaming output**: `aegisx agent --stream` forwards content deltas to the terminal as the model generates them (`stream: true` SSE); the provider accumulates streamed tool-call fragments into complete calls and silently falls back to a plain request when the endpoint does not support SSE
 - **Nudge eval scenario**: `truncation_nudge_recovery` added to the eval harness (now 5 scenarios) so the stub-answer nudge stays regression-tested

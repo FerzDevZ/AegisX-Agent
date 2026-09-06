@@ -7,4 +7,5 @@ __all__ = [
     "config_scanner",
     "dependency_scanner",
     "network_scanner",
+    "ssrf_scanner",
 ]

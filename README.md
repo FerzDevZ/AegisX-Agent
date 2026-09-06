@@ -44,6 +44,7 @@ Everything runs locally. Every request is rate-limited and scope-checked. Scan h
 | ⚙️ **Config Scanner** | Debug mode leaks, default pages, directory listing, dangerous HTTP methods, server info disclosure, CORS misconfig |
 | 📦 **Dependency Scanner** | Known-vulnerable JS library detection (jQuery, AngularJS, Bootstrap, Lodash) |
 | 🌐 **Network Scanner** | TCP port scan (28 common ports), service fingerprinting, 18 dangerous-service checks, SSL certificate expiry |
+| 🕸️ **SSRF Scanner** | URL-parameter discovery, open-redirect detection (CWE-601), blind-SSRF reflection probes (CWE-918) |
 | 💥 **Exploit Verification** | SQLi, XSS, CSRF, SSRF — verify findings are actually exploitable before you trust them |
 | 📊 **Report Formats** | Markdown, JSON, SARIF v2.1.0 (GitHub Code Scanning), interactive HTML dashboard |
 | 🎯 **CVSS v3.1** | Vector strings, base scores, severity buckets |
@@ -271,6 +272,7 @@ src/aegisx/
 │   ├── secret_scanner.py     #   19 credential patterns
 │   ├── config_scanner.py     #   Misconfiguration checks
 │   ├── dependency_scanner.py #   Vulnerable JS libraries
+│   ├── ssrf_scanner.py       #   Open redirect + blind SSRF detection
 │   └── network_scanner.py    #   Ports, services, SSL/TLS
 │
 ├── exploits/                 # Verification modules (BaseExploit)
@@ -489,7 +491,7 @@ Aegisx-Agent is built to keep authorized work safe:
 - [x] Agent session resume — interrupted runs continue with `aegisx agent --continue <scan-id>` (checkpoints after every iteration, atomic writes)
 - [x] Streaming output — `aegisx agent --stream` prints model deltas live, with automatic fallback when the endpoint lacks SSE support
 - [x] Agent eval harness — `python -m aegisx.ai.evals` scores 5 scripted scenarios through the real loop
-- [ ] SSRF *detection* scanner (the exploit verifier already exists)
+- [x] SSRF *detection* scanner (CWE-601 open redirect + CWE-918 blind SSRF; pairs with the existing `ssrf_exploit` verifier)
 - [ ] Auth scanner (JWT, session, OAuth testing)
 - [ ] Continuous monitoring (scheduled scans + diff alerts)
 - [ ] Slack/Discord notifications
