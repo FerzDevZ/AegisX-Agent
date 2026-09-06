@@ -34,7 +34,7 @@ INSTALL_DIR="${AEGISX_INSTALL_DIR:-$HOME/.aegisx}"
 VENV_DIR="${INSTALL_DIR}/.venv"
 BIN_DIR="${INSTALL_DIR}/bin"
 PYTHON_MIN_VERSION="3.12"
-AEGISX_VERSION="0.1.1"
+AEGISX_VERSION="0.1.2"
 
 # ─── Helpers ───────────────────────────────────────────────────
 print_banner() {
@@ -332,7 +332,7 @@ AEGISX_TIMEOUT_SECONDS=30
 AEGISX_MAX_REQUESTS_PER_SECOND=10.0
 
 # User Agent
-AEGISX_USER_AGENT=AegisxAgent/0.1.1 (Security Scanner)
+AEGISX_USER_AGENT=AegisxAgent/0.1.2 (Security Scanner)
 
 # Scanners to enable
 AEGISX_ENABLED_SCANNERS=["web_scanner","secret_scanner","config_scanner","dependency_scanner"]
@@ -355,6 +355,15 @@ AEGISX_VERBOSE=false
 # Target Authentication (optional)
 # AEGISX_AUTH_TOKEN=your-token-here
 # AEGISX_SCOPE=["example.com","api.example.com"]
+
+# ─── AI Agent (AegisX Brain) ──────────────────────────────────────
+# Any OpenAI-compatible endpoint. Presets: custom | deepseek | openai
+# | groq | openrouter | ollama (local, no key needed)
+AEGISX_AI_PROVIDER=custom
+# AEGISX_AI_BASE_URL=https://api.deepseek.com/v1
+# AEGISX_AI_API_KEY=sk-your-key-here
+# AEGISX_AI_MODEL=deepseek-chat
+# AEGISX_AI_MAX_ITERATIONS=25
 ENVEOF
         log_success "Configuration created at ${WHITE}${ENV_FILE}${NC}"
     fi
@@ -412,6 +421,14 @@ print_summary() {
     echo ""
     echo -e "  ${CYAN}# Recon only${NC}"
     echo -e "  aegisx recon https://example.com"
+    echo ""
+    echo -e "  ${CYAN}# AI agent: autonomous assessment (configure AI first)${NC}"
+    echo -e "  aegisx ai-config"
+    echo -e "  aegisx agent https://example.com"
+    echo -e "  aegisx ask \"what is the most urgent finding?\""
+    echo ""
+    echo -e "  ${CYAN}# Scan history${NC}"
+    echo -e "  aegisx history"
     echo ""
     echo -e "  ${CYAN}# List plugins${NC}"
     echo -e "  aegisx plugins"
