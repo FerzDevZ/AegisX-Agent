@@ -89,6 +89,7 @@ class AegisxConfig(BaseSettings):
             "dependency_scanner",
             "network_scanner",
             "ssrf_scanner",
+            "auth_scanner",
         ],
         description="List of scanner modules to enable",
     )

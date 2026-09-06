@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Auth scanner** (`auth_scanner`, enabled by default — 7 scanners total):
+  - **JWT checks**: `alg: none` acceptance (CWE-347, critical), missing `exp` claim and excessively long lifetimes >24h (CWE-613), sensitive claims readable in the plaintext payload (CWE-312)
+  - **Session management**: session identifiers exposed in URLs (CWE-598)
+  - **OAuth 2.0 / OIDC**: authorization requests without `state` (CWE-352 login CSRF), `redirect_uri` values with query params or wildcards flagged for loose validation (CWE-601)
+  - Complements the existing `web/auth_scanner` auth-bypass heuristic; all checks are passive (no brute force, no credential testing)
+  - 18 new tests (308 total)
+
 - **AI agent SSRF probing** (`probe_ssrf` tool, 8 tools total): the Brain now discovers URL-taking parameters and autonomously probes them for open redirects (CWE-601) and blind SSRF (CWE-918); the pentest methodology prompt includes a dedicated SSRF step, findings land in the scan context automatically, and out-of-scope probe requests are blocked as usual
 
 - **SSRF detection scanner** (`ssrf_scanner`, enabled by default):
