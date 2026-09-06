@@ -36,6 +36,9 @@ logger = get_logger("ai.agent")
 _MAX_TOOL_RESULT_CHARS = 4_000
 _KEEP_RECENT_MESSAGES = 12
 _MAX_PARALLEL_TOOLS = 4
+# A final answer shorter than this (with no tool calls) is treated as a
+# truncated stub; the model gets one nudge to actually do the work.
+_MIN_FINAL_ANSWER_CHARS = 200
 
 
 @dataclass
@@ -82,6 +85,7 @@ class AegisxAgent:
             },
         ]
         self._dup_warned = False
+        self._nudged = False
         self._context_digest: str = ""
 
     async def run(self) -> AgentResult:
@@ -104,7 +108,39 @@ class AegisxAgent:
 
                 # No tool calls → the model is done; capture final answer
                 if not chat.has_tool_calls:
-                    result.final_message = chat.content or ""
+                    content = chat.content or ""
+                    # Truncation guard: free/small models sometimes emit a
+                    # stub answer mid-thought and stop. Nudge them to
+                    # continue (once) instead of accepting a broken answer.
+                    if (
+                        len(content) < _MIN_FINAL_ANSWER_CHARS
+                        and result.tool_calls_made == 0
+                        and not self._nudged
+                        and result.iterations_used < max_iters
+                    ):
+                        self._nudged = True
+                        logger.info(
+                            "[bold yellow]AGENT[/] stub final answer (%d chars) "
+                            "— nudging model to continue",
+                            len(content),
+                        )
+                        self.messages.append(
+                            {"role": "assistant", "content": content}
+                        )
+                        self.messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    "Your previous reply was cut off before you "
+                                    "did any work. Continue the assessment now: "
+                                    "call tools (run_recon first), and only give "
+                                    "your final summary when the assessment is "
+                                    "complete."
+                                ),
+                            }
+                        )
+                        continue
+                    result.final_message = content
                     result.stopped_reason = "done"
                     self._finalize(result)
                     return result

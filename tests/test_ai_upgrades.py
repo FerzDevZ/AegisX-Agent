@@ -24,8 +24,8 @@ from aegisx.ai.evals import EvalRunner, MockProvider, ScriptedStep
 from aegisx.ai.provider import AIProvider
 from aegisx.ai.redaction import redact
 from aegisx.ai.tools import TOOL_SCHEMAS, ToolDispatcher
-from aegisx.core.config import AegisxConfig, Severity
-from aegisx.core.context import Finding, ScanContext
+from aegisx.core.config import AegisxConfig
+from aegisx.core.context import ScanContext
 from aegisx.utils.history import ScanHistory
 
 
@@ -89,7 +89,10 @@ class TestRedaction:
         assert "ghp_AbCdEf" not in out
 
     def test_jwt_redacted(self):
-        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        jwt = (
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0."
+            "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        )
         out = redact(f"Bearer {jwt}")
         assert "dozjgNryP4J3" not in out
 
@@ -200,6 +203,63 @@ class TestAgentPersistenceAndMetering:
         assert data["target"] == config.target_url
         assert data["model"] == "test-model"
         assert isinstance(data["messages"], list) and data["messages"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_stub_answer_gets_one_nudge(self):
+        """A short no-tool answer triggers exactly one nudge, then the loop continues."""
+        route = respx.post("http://ai.test/v1/chat/completions")
+        route.side_effect = [
+            # 1st call: model answers with a truncated stub, no tools
+            httpx.Response(200, json=_completion(content="The user wants me to begin")),
+            # 2nd call (after nudge): model starts working
+            httpx.Response(
+                200,
+                json=_completion(
+                    tool_calls=[_tc("c1", "run_recon", {})],
+                    finish="tool_calls",
+                ),
+            ),
+            # 3rd call: proper final summary (long enough)
+            httpx.Response(
+                200,
+                json=_completion(
+                    content="Assessment complete. " * 20,  # > 200 chars
+                ),
+            ),
+        ]
+        agent = AegisxAgent(_config())
+        result = await agent.run()
+        assert result.stopped_reason == "done"
+        assert result.tool_calls_made == 1
+        assert route.call_count == 3
+        # The nudge message must be present in the transcript
+        assert any(
+            "cut off" in str(m.get("content", ""))
+            for m in result.transcript
+            if m.get("role") == "user"
+        )
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_short_summary_after_work_is_accepted(self):
+        """A short final answer AFTER doing work is a valid summary — no nudge."""
+        route = respx.post("http://ai.test/v1/chat/completions")
+        route.side_effect = [
+            httpx.Response(
+                200,
+                json=_completion(
+                    tool_calls=[_tc("c1", "get_findings", {})],
+                    finish="tool_calls",
+                ),
+            ),
+            httpx.Response(200, json=_completion(content="No findings.")),
+        ]
+        agent = AegisxAgent(_config())
+        result = await agent.run()
+        assert result.stopped_reason == "done"
+        assert result.final_message == "No findings."
+        assert route.call_count == 2
 
     @respx.mock
     @pytest.mark.asyncio
