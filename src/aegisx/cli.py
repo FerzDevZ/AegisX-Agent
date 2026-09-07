@@ -277,6 +277,14 @@ def agent(
         "-s",
         help="Stream the model's output as it is generated (falls back automatically)",
     ),
+    vote: str | None = typer.Option(
+        None,
+        "--vote",
+        help=(
+            "Comma-separated peer models that cross-review the final "
+            "assessment (multi-model voting). Example: --vote gpt-4o-mini,llama3.1"
+        ),
+    ),
 ) -> None:
     """Autonomous AI-driven pentest — the LLM plans and runs the assessment.
 
@@ -355,6 +363,8 @@ def agent(
         config.ai_api_key = ai_api_key
     if ai_model:
         config.ai_model = ai_model
+    if vote:
+        config.ai_vote_models = [m.strip() for m in vote.split(",") if m.strip()]
 
     _print_banner()
 
@@ -380,7 +390,9 @@ def agent(
             f"Model: [cyan]{bot.provider.model}[/]\n"
             f"Max iterations: {config.ai_max_iterations}\n"
             f"Exploit tools: {'[red]AUTHORIZED[/]' if exploit else '[dim]disabled[/]'}\n"
-            f"Streaming: {'[green]on[/]' if stream else '[dim]off[/]'}",
+            f"Streaming: {'[green]on[/]' if stream else '[dim]off[/]'}\n"
+            f"Peer voting: "
+            f"{', '.join(config.ai_vote_models) if config.ai_vote_models else '[dim]off[/]'}",
             title="🧠 AI Agent" + (" — resuming" if resuming else ""),
             border_style="magenta",
         )

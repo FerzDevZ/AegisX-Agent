@@ -29,6 +29,7 @@ from aegisx.ai.prompts import BUDGET_WARNING, SYSTEM_PROMPT
 from aegisx.ai.provider import AIProvider, AIProviderError
 from aegisx.ai.sessions import AgentSessionState, SessionStore
 from aegisx.ai.tools import TOOL_SCHEMAS, ToolDispatcher
+from aegisx.ai.voting import VotingProvider, VotingResult
 from aegisx.core.config import AegisxConfig
 from aegisx.core.context import ScanContext
 from aegisx.utils.logger import get_logger
@@ -58,6 +59,7 @@ class AgentResult:
     completion_tokens: int = 0
     transcript: list[dict[str, Any]] = field(default_factory=list)
     transcript_path: str = ""
+    voting_result: VotingResult | None = None
 
 
 class AegisxAgent:
@@ -72,7 +74,14 @@ class AegisxAgent:
         """
         self.config = config
         self.context = context or ScanContext(config=config, target_url=config.target_url)
-        self.provider = AIProvider(config)
+        if config.ai_vote_models:
+            # Multi-model voting: peers cross-review the final assessment
+            # to surface what the primary model missed (false negatives).
+            self.provider: AIProvider | VotingProvider = VotingProvider(
+                config, peer_models=config.ai_vote_models
+            )
+        else:
+            self.provider = AIProvider(config)
         self.dispatcher = ToolDispatcher(config, self.context)
         self.messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -206,6 +215,33 @@ class AegisxAgent:
                         continue
                     result.final_message = content
                     result.stopped_reason = "done"
+                    # Multi-model voting: peers review the final answer
+                    # before it is accepted. Dissent is appended to the
+                    # report, never silently dropped.
+                    if isinstance(self.provider, VotingProvider):
+                        try:
+                            voting = await self.provider.review_final_assessment(
+                                self.context, content
+                            )
+                            result.voting_result = voting
+                            result.prompt_tokens += voting.prompt_tokens
+                            result.completion_tokens += voting.completion_tokens
+                            if voting.dissenting:
+                                missed = "\n".join(f"- {item}" for item in voting.missed_items)
+                                content += (
+                                    "\n\n## ⚠️ Peer-Review Dissent\n"
+                                    f"{len(voting.dissenting)}/"
+                                    f"{len(self.provider.peers)} peer models "
+                                    "flagged items this report may have missed:\n"
+                                    f"{missed}\n"
+                                )
+                                result.final_message = content
+                        except Exception as exc:  # noqa: BLE001 — voting is advisory
+                            logger.warning(
+                                "[bold yellow]VOTE[/] peer review failed (%s) — "
+                                "continuing with the primary assessment",
+                                exc,
+                            )
                     self._finalize(result)
                     return result
 
@@ -252,6 +288,25 @@ class AegisxAgent:
 
             result.stopped_reason = "budget"
             result.final_message = await self._force_summary()
+            # Budget runs get the same peer review as normal completions.
+            if isinstance(self.provider, VotingProvider) and result.final_message:
+                try:
+                    voting = await self.provider.review_final_assessment(
+                        self.context, result.final_message
+                    )
+                    result.voting_result = voting
+                    result.prompt_tokens += voting.prompt_tokens
+                    result.completion_tokens += voting.completion_tokens
+                    if voting.dissenting:
+                        missed = "\n".join(f"- {item}" for item in voting.missed_items)
+                        result.final_message += (
+                            "\n\n## ⚠️ Peer-Review Dissent\n"
+                            f"{len(voting.dissenting)}/{len(self.provider.peers)} "
+                            "peer models flagged items this report may have missed:\n"
+                            f"{missed}\n"
+                        )
+                except Exception as exc:  # noqa: BLE001 — voting is advisory
+                    logger.warning("[bold yellow]VOTE[/] peer review failed: %s", exc)
             self._finalize(result)
             return result
 
@@ -401,6 +456,25 @@ class AegisxAgent:
                             "total": result.total_tokens,
                         },
                         "stopped_reason": result.stopped_reason,
+                        "peer_review": (
+                            {
+                                "peers": [
+                                    {
+                                        "model": v.model,
+                                        "dissent": v.dissent,
+                                        "missed": v.missed,
+                                        "error": v.error,
+                                    }
+                                    for v in (
+                                        result.voting_result.verdicts
+                                        if result.voting_result
+                                        else []
+                                    )
+                                ],
+                            }
+                            if result.voting_result is not None
+                            else None
+                        ),
                         "messages": result.transcript,
                     },
                     ensure_ascii=False,

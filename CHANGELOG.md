@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Multi-model voting** (`--vote model-a,model-b` / `AEGISX_AI_VOTE_MODELS`): N peer models independently cross-review the agent's final assessment before it is accepted, attacking the quiet failure mode of single-model pentesting — one model misses one finding and the report reads clean. Peers receive an evidence-only, redacted digest (never the primary's reasoning), dissent requires concrete `MISSED:` items (generic checklists dropped), findings are appended under a **Peer-Review Dissent** section and stored in the audit transcript, peer failures degrade to silence, and peer token usage is metered into the run total. 19 new tests (351 total)
+
 ## [0.2.0] — 2026-09-06
 
 ### Added

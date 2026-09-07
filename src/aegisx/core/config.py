@@ -173,6 +173,13 @@ class AegisxConfig(BaseSettings):
         le=2.0,
         description="LLM temperature (low = deterministic tool use)",
     )
+    ai_vote_models: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Peer models that cross-review the agent's final assessment "
+            "(multi-model voting against false negatives). Empty = off."
+        ),
+    )
 
     @field_validator("scope")
     @classmethod

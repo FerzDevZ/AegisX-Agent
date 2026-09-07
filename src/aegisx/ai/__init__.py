@@ -8,6 +8,7 @@ scan engine autonomously.
 from aegisx.ai.agent import AegisxAgent, AgentResult
 from aegisx.ai.provider import AIProvider, AIProviderError, ChatResult, ToolCall
 from aegisx.ai.tools import TOOL_SCHEMAS, ToolDispatcher
+from aegisx.ai.voting import PeerVerdict, VotingProvider, VotingResult
 
 __all__ = [
     "AegisxAgent",
@@ -15,7 +16,10 @@ __all__ = [
     "AIProvider",
     "AIProviderError",
     "ChatResult",
+    "PeerVerdict",
     "ToolCall",
     "ToolDispatcher",
     "TOOL_SCHEMAS",
+    "VotingProvider",
+    "VotingResult",
 ]

@@ -168,8 +168,36 @@ aegisx agent ... --max-iterations 40 --exploit   # bigger budget + exploit tools
 aegisx agent --continue list           # list checkpointed runs
 aegisx agent --continue <scan-id>      # resume an interrupted run
 aegisx agent ... --stream              # print model output as it generates
+aegisx agent ... --vote gpt-4o-mini,llama3.1   # peers cross-review the report
 aegisx ask "which finding is most urgent?"       # Q&A over the last scan
 ```
+
+### Multi-model voting
+
+Single-model pentesting fails quietly: one model misses one finding and the
+report reads clean. `--vote` makes N peer models independently review the
+primary model's final assessment before it is accepted:
+
+```bash
+aegisx agent https://example.com \
+  --ai-base-url https://openrouter.ai/api/v1 \
+  --ai-model deepseek/deepseek-chat \
+  --vote openai/gpt-4o-mini,meta-llama/llama-3.3-70b
+```
+
+- Peers receive an evidence-only digest (recon data, findings, discovered
+  pages) — never the primary's reasoning, so the review stays independent.
+- A peer counts as dissenting only when it names concrete missed findings
+  (`MISSED:` lines); generic checklists and vague replies are dropped.
+- Dissent is appended to the report under **Peer-Review Dissent** and stored
+  in the audit transcript — it is never silently discarded.
+- Peer failures (network, quota, malformed output) degrade to silence; a dead
+  peer never fails the run.
+- Peer token usage is metered into the run total.
+
+Peers share the primary's endpoint and API key — the common setup is one
+gateway serving several models. Voting can also be enabled persistently with
+`AEGISX_AI_VOTE_MODELS=model-a,model-b`.
 
 ### Enforced guardrails
 
@@ -342,6 +370,7 @@ AEGISX_AI_BASE_URL=https://api.deepseek.com/v1
 AEGISX_AI_API_KEY=sk-...
 AEGISX_AI_MODEL=deepseek-chat
 AEGISX_AI_MAX_ITERATIONS=25
+AEGISX_AI_VOTE_MODELS=model-a,model-b   # peer reviewers (empty = off)
 
 # Relocation hooks (also keep the test suite hermetic)
 AEGISX_HISTORY_DB=~/.aegisx/history.db
@@ -457,7 +486,7 @@ config. Full walkthrough — exploits and reporters included — in
 ## Testing
 
 ```bash
-pytest -v                                  # 332 tests
+pytest -v                                  # 351 tests
 pytest --cov=aegisx --cov-report=term      # with coverage
 ruff check src tests                       # lint
 ruff format --check src tests              # format gate (same as CI)
@@ -488,8 +517,8 @@ JSON audit logs of every run.
 - [x] SSRF and auth scanners (detection + probing + exploit verification)
 - [x] Continuous monitoring with webhook notifications
 - [x] SIEM export and scan-history diffing
+- [x] Multi-model voting to reduce false negatives
 - [ ] Web dashboard for history and trends
-- [ ] Multi-model voting to reduce false negatives
 
 ## Contributing
 
