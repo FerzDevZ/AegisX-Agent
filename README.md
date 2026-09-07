@@ -322,6 +322,7 @@ Ingest with Splunk HEC, Filebeat, or Azure Sentinel.
 | `aegisx pentest` | Full pipeline with exploit verification (consent prompt) |
 | `aegisx agent` | Autonomous AI-driven assessment |
 | `aegisx monitor` | Scheduled re-scans with new-finding alerts |
+| `aegisx dashboard` | Local web dashboard: history, severity trends, findings |
 | `aegisx recon` | Passive reconnaissance only |
 | `aegisx ask` | Ask the AI about the most recent scan |
 | `aegisx ai-config` | Test the AI endpoint, show resolved config |
@@ -349,6 +350,25 @@ Ingest with Splunk HEC, Filebeat, or Azure Sentinel.
 
 Scan modes: `passive` (recon only), `quick` (common checks), `full` (all
 scanners + verification), `stealth` (slow, low-profile probing).
+
+## Web dashboard
+
+```bash
+aegisx dashboard                 # http://127.0.0.1:8720
+aegisx dashboard --port 9000     # custom port (auto-bumps if taken)
+aegisx dashboard --no-browser    # serve without opening the browser
+```
+
+A single-page, read-only view over the scan-history database: overall
+stats, per-target severity mix, findings-over-time trend bars, recent
+scan table, and a click-through finding list per scan. Zero new
+dependencies — `http.server` plus an embedded page (no CDN, works
+offline).
+
+The server binds to `127.0.0.1` by default; `--host` overrides it with
+a loud warning, because scan history is sensitive. The API is GET-only,
+serves titles/severities/URLs (not raw evidence), and sends
+`X-Frame-Options: DENY`, `nosniff`, and `no-store` on every response.
 
 ## Configuration
 
@@ -486,7 +506,7 @@ config. Full walkthrough — exploits and reporters included — in
 ## Testing
 
 ```bash
-pytest -v                                  # 351 tests
+pytest -v                                  # 363 tests
 pytest --cov=aegisx --cov-report=term      # with coverage
 ruff check src tests                       # lint
 ruff format --check src tests              # format gate (same as CI)
@@ -518,7 +538,7 @@ JSON audit logs of every run.
 - [x] Continuous monitoring with webhook notifications
 - [x] SIEM export and scan-history diffing
 - [x] Multi-model voting to reduce false negatives
-- [ ] Web dashboard for history and trends
+- [x] Web dashboard for history and trends
 
 ## Contributing
 

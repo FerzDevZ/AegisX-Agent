@@ -61,8 +61,9 @@ select = ["E", "F", "I", "N", "UP", "B", "A", "SIM", "S"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests legitimately use bare asserts, hardcoded fixture secrets, and
-# long data lines (URLs, payloads, expected strings)
-"tests/*" = ["S101", "S106", "E501", "E402"]
+# long data lines (URLs, payloads, expected strings). urllib is only
+# pointed at the ephemeral localhost dashboard port.
+"tests/*" = ["S101", "S106", "E501", "E402", "S310"]
 # Typer's declarative API requires Option()/Argument() calls in defaults
 "src/aegisx/cli.py" = ["B008", "B904"]
 # Knowledge-base tables carry long OWASP/CWE description strings
@@ -72,6 +73,9 @@ select = ["E", "F", "I", "N", "UP", "B", "A", "SIM", "S"]
 "src/aegisx/scanners/*" = ["E501"]
 "src/aegisx/exploits/*" = ["E501"]
 "src/aegisx/reporters/*" = ["E501"]
+# The embedded dashboard page carries long HTML/CSS/JS lines that must
+# not be wrapped; the handler's broad except is a deliberate crash guard
+"src/aegisx/dashboard.py" = ["E501", "SIM105", "S110"]
 
 [tool.mypy]
 python_version = "3.12"

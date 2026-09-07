@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Web dashboard** (`aegisx dashboard`): local, read-only single-page view over the scan-history database — overall stats, per-target severity mix, findings-over-time trend bars, recent scan table, and click-through finding detail. Zero new dependencies (`http.server` + embedded HTML/SVG page, no CDN). Security posture: binds to `127.0.0.1` only (`--host` override warns loudly), GET-only API, titles/severities only (no raw evidence), `DENY`/`nosniff`/`no-store` headers. 12 new tests (363 total)
 - **Multi-model voting** (`--vote model-a,model-b` / `AEGISX_AI_VOTE_MODELS`): N peer models independently cross-review the agent's final assessment before it is accepted, attacking the quiet failure mode of single-model pentesting — one model misses one finding and the report reads clean. Peers receive an evidence-only, redacted digest (never the primary's reasoning), dissent requires concrete `MISSED:` items (generic checklists dropped), findings are appended under a **Peer-Review Dissent** section and stored in the audit transcript, peer failures degrade to silence, and peer token usage is metered into the run total. 19 new tests (351 total)
 
 ## [0.2.0] — 2026-09-06

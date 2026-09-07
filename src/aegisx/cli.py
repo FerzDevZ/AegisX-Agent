@@ -707,6 +707,38 @@ def monitor(
     console.print(table)
 
 
+@app.command()
+def dashboard(
+    host: str = typer.Option(
+        "127.0.0.1",
+        "--host",
+        help=(
+            "Bind address. Keep 127.0.0.1 — scan history is sensitive; "
+            "only override when you mean to expose it"
+        ),
+    ),
+    port: int = typer.Option(8720, "--port", "-p", help="TCP port (auto-bumps if taken)"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Do not open the browser"),
+) -> None:
+    """Open the local dashboard: scan history, severity trends, per-scan findings.
+
+    Read-only, binds to 127.0.0.1 by default, zero new dependencies.
+    """
+    from aegisx.dashboard import serve
+    from aegisx.utils.history import ScanHistory
+
+    if host != "127.0.0.1":
+        console.print(
+            f"[bold yellow]WARNING[/] Binding the dashboard to {host} exposes "
+            "your scan history to the network."
+        )
+
+    try:  # noqa: SIM105 — explicit Ctrl-C handling, not suppression
+        serve(host=host, port=port, history=ScanHistory(), open_browser=not no_browser)
+    except KeyboardInterrupt:
+        pass
+
+
 @app.command("plugins")
 def list_plugins() -> None:
     """List all available scanner, exploit, and reporter plugins."""
