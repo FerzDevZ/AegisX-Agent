@@ -744,18 +744,47 @@ def list_plugins() -> None:
     """List all available scanner, exploit, and reporter plugins."""
     pm = get_plugin_manager()
     pm.load_entry_points()
-    # Register built-in scanners
+    # Register built-in scanners (mirror orchestrator._register_builtins)
+    from aegisx.scanners.auth_scanner import AuthScanner
     from aegisx.scanners.config_scanner import ConfigScanner
     from aegisx.scanners.dependency_scanner import DependencyScanner
+    from aegisx.scanners.network_scanner import NetworkScanner
     from aegisx.scanners.secret_scanner import SecretScanner
+    from aegisx.scanners.ssrf_scanner import SSRFScanner
     from aegisx.scanners.ssti_scanner import SSTIScanner
     from aegisx.scanners.web_scanner import WebScanner
 
-    pm.register_scanner(WebScanner.name, WebScanner)
-    pm.register_scanner(SecretScanner.name, SecretScanner)
-    pm.register_scanner(ConfigScanner.name, ConfigScanner)
-    pm.register_scanner(DependencyScanner.name, DependencyScanner)
-    pm.register_scanner(SSTIScanner.name, SSTIScanner)
+    for cls in [
+        WebScanner,
+        SecretScanner,
+        ConfigScanner,
+        DependencyScanner,
+        NetworkScanner,
+        SSRFScanner,
+        AuthScanner,
+        SSTIScanner,
+    ]:
+        pm.register_scanner(cls.name, cls)
+
+    # Register built-in exploits
+    from aegisx.exploits.cors_exploit import CORSExploit
+    from aegisx.exploits.csrf_exploit import CSRFExploit
+    from aegisx.exploits.sqli_exploit import SQLiExploit
+    from aegisx.exploits.ssrf_exploit import SSRFExploit
+    from aegisx.exploits.ssti_exploit import SSTIExploit
+    from aegisx.exploits.traversal_exploit import PathTraversalExploit
+    from aegisx.exploits.xss_exploit import XSSExploit
+
+    for cls in [
+        SQLiExploit,
+        XSSExploit,
+        CSRFExploit,
+        SSRFExploit,
+        SSTIExploit,
+        CORSExploit,
+        PathTraversalExploit,
+    ]:
+        pm.register_exploit(cls.name, cls)
 
     # Register built-in reporters
     from aegisx.reporters.html_reporter import HTMLReporter
