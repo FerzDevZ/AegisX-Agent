@@ -125,6 +125,8 @@ class ScanContext:
     exploit_results: list[ExploitResult] = field(default_factory=list)
     target_info: dict[str, Any] = field(default_factory=dict)
     crawl_urls: list[str] = field(default_factory=list)
+    # AI agent scratchpad — persists across context-window trims
+    agent_notes: list[str] = field(default_factory=list)
 
     # Timing
     _start_time: float = field(default_factory=time.time, repr=False)

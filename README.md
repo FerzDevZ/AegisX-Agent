@@ -4,12 +4,13 @@
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.2.0-green)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-332%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-416%20passing-brightgreen)](#testing)
 
 An autonomous security scanner for web applications, written in async Python.
-It maps a target, probes it with seven scanner modules, verifies findings with
+It maps a target, probes it with eight scanner modules, verifies findings with
 exploit modules, and writes scored reports — optionally driven end-to-end by
-any OpenAI-compatible LLM you supply.
+any OpenAI-compatible LLM you supply, with specialist sub-agents for deep
+dives.
 
 Everything runs on your machine. Every request passes a scope whitelist and a
 token-bucket rate limiter before it leaves. No telemetry, no cloud component.
@@ -94,7 +95,7 @@ anywhere, no server needed.
 
 ## Scanners and exploits
 
-Seven scanners are enabled by default (`aegisx plugins` lists them all):
+Eight scanners are enabled by default (`aegisx plugins` lists them all):
 
 | Scanner | What it checks |
 |---|---|
@@ -105,11 +106,14 @@ Seven scanners are enabled by default (`aegisx plugins` lists them all):
 | `network_scanner` | TCP scan of 28 common ports, service fingerprinting, dangerous-service checks, SSL certificate expiry |
 | `ssrf_scanner` | URL-parameter discovery (40+ canonical names), open redirects (CWE-601), blind-SSRF reflections (CWE-918) |
 | `auth_scanner` | JWT `alg=none` (CWE-347), missing/overlong expiry (CWE-613), sensitive claims (CWE-312), session IDs in URLs (CWE-598), OAuth missing `state` (CWE-352) and loose `redirect_uri` (CWE-601) |
+| `ssti_scanner` | Template-injection probes across 10 engine families (Jinja2, Twig, ERB, Freemarker, Mako, Velocity, Smarty, Nunjucks) with baseline-diffed detection (CWE-1336) |
 
-Findings can be verified by four exploit modules — `sqli_exploit`,
-`xss_exploit`, `csrf_exploit`, `ssrf_exploit` — so the report distinguishes
-*confirmed* from *suspected*. Verification is gated behind an explicit
-authorization prompt (`aegisx pentest`) or the `--exploit` flag.
+Findings can be verified by seven exploit modules — `sqli_exploit`,
+`xss_exploit`, `csrf_exploit`, `ssrf_exploit`, `ssti_exploit` (with engine
+fingerprinting), `cors_exploit` (origin reflection replay), and
+`traversal_exploit` (read-only system-file probes) — so the report
+distinguishes *confirmed* from *suspected*. Verification is gated behind an
+explicit authorization prompt (`aegisx pentest`) or the `--exploit` flag.
 
 Each finding carries a CVSS v3.1 vector and base score, a CWE identifier, an
 OWASP Top 10 2021 category, evidence, and remediation guidance.
@@ -120,16 +124,22 @@ AegisX Brain is a tool-calling agent loop. The LLM decides what to do next;
 the harness decides what is allowed. Scope, consent, budget, and redaction
 are enforced in the harness — not promised in the prompt.
 
-The agent ships with nine tools and an eight-step methodology
-(recon → map → deep scan → SSRF probe → auth probe → review → verify →
-report):
+The agent ships with fifteen tools and a nine-step methodology
+(recon → map → deep scan → SSRF probe → auth probe → delegate → review →
+verify → report):
 
 | Tool | Purpose |
 |---|---|
 | `run_recon` | Fingerprint the target |
-| `run_scanner` | Run any subset of the seven scanners |
+| `run_scanner` | Run any subset of the eight scanners |
 | `probe_ssrf` | Discover URL parameters and probe for redirects/SSRF |
 | `probe_auth` | Mine JWTs/OAuth links and return decoded facts to reason about |
+| `store_note` | Persistent scratchpad that survives context trimming |
+| `fuzz_param` | Fuzz one parameter with a high-signal payload set (SQLi/SSTI/XSS/traversal) and diff responses |
+| `diff_responses` | Compare two responses (status/length/hash) to confirm blind injection |
+| `enum_paths` | Content discovery: probe ~40 canonical sensitive paths with a concurrency cap |
+| `lookup_cwe` | Ground severity and remediation in the OWASP/CWE knowledge base |
+| `spawn_agent` | Spawn a specialist sub-agent (recon/vuln/exploit) with its own budget and restricted toolset |
 | `verify_exploit` | Confirm a finding is exploitable (consent-gated) |
 | `http_request` | Send a scoped raw request for manual analysis |
 | `get_findings` | Read the current finding set |
@@ -227,7 +237,7 @@ gateway serving several models. Voting can also be enabled persistently with
 
 ### Evals
 
-Eight scripted scenarios run through the real agent loop (real dispatcher,
+Ten scripted scenarios run through the real agent loop (real dispatcher,
 real scope checks, mock provider) and are scored automatically:
 
 ```bash
@@ -239,7 +249,8 @@ python -m aegisx.ai.evals
 ✅ scope_violation_blocked       ✅ ssrf_probing_flow
 ✅ parallel_tool_execution       ✅ auth_probing_flow
 ✅ exploit_requires_consent      ✅ ssrf_probe_scope_blocked
-Score: 100% (8/8)
+✅ spawn_recon_delegation        ✅ spawn_exploit_requires_consent
+Score: 100% (10/10)
 ```
 
 Any regression in the harness — including a leaked scope check — turns an
@@ -506,12 +517,12 @@ config. Full walkthrough — exploits and reporters included — in
 ## Testing
 
 ```bash
-pytest -v                                  # 363 tests
+pytest -v                                  # 416 tests
 pytest --cov=aegisx --cov-report=term      # with coverage
 ruff check src tests                       # lint
 ruff format --check src tests              # format gate (same as CI)
 mypy src/aegisx                            # types
-python -m aegisx.ai.evals                  # agent scenarios, 8/8
+python -m aegisx.ai.evals                  # agent scenarios, 10/10
 ```
 
 All HTTP and LLM traffic is mocked with `respx` — the suite never touches the
@@ -530,10 +541,11 @@ JSON audit logs of every run.
 
 ## Roadmap
 
-- [x] Core engine, seven scanners, four exploit verifiers, four report formats
-- [x] AI agent mode with bring-your-own LLM, nine tools, enforced guardrails
+- [x] Core engine, eight scanners, seven exploit verifiers, four report formats
+- [x] AI agent mode with bring-your-own LLM, fifteen tools, enforced guardrails
+- [x] Multi-agent orchestration: specialist sub-agents (recon/vuln/exploit) with restricted toolsets
 - [x] Agent session resume and streaming output
-- [x] Agent eval harness (8 scenarios through the real loop)
+- [x] Agent eval harness (10 scenarios through the real loop)
 - [x] SSRF and auth scanners (detection + probing + exploit verification)
 - [x] Continuous monitoring with webhook notifications
 - [x] SIEM export and scan-history diffing

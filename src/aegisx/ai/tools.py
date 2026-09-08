@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
+from urllib.parse import quote as _quote
 from urllib.parse import urlparse
 
 from aegisx.ai.redaction import redact
@@ -26,6 +27,75 @@ _SSRF_BLACKLIST_HOSTS = {
     "metadata.google.internal",
     "100.100.100.200",  # aliyun metadata
 }
+
+# High-signal fuzz set for fuzz_param: one probe per vulnerability class.
+# Small by design — the model can iterate, the target must not suffer.
+_FUZZ_PAYLOADS: list[tuple[str, str]] = [
+    ("sqli_quote", "'\"`()"),
+    ("sqli_or", "' OR '1'='1"),
+    ("sqli_union", "1 UNION SELECT NULL-- -"),
+    ("ssti_jinja", "{{7*7}}"),
+    ("ssti_dollar", "${7*7}"),
+    ("xss_reflect", '"><script>alert(1)</script>'),
+    ("traversal", "../../../../etc/passwd"),
+    ("format_string", "%s%s%s%s"),
+]
+
+_SQL_ERROR_SIGNATURES = [
+    "you have an error in your sql syntax",
+    "warning: mysql",
+    "unclosed quotation mark",
+    "quoted string not properly terminated",
+    "pg_query()",
+    "sqlite3.operationalerror",
+    "ora-01756",
+]
+_TRAVERSAL_SIGNATURE = "root:x:0:0:"
+
+# Common sensitive/interesting paths for enum_paths (default set)
+_ENUM_PATHS = [
+    "/admin",
+    "/admin/login",
+    "/administrator",
+    "/api",
+    "/api/v1",
+    "/backup",
+    "/backup.zip",
+    "/.env",
+    "/.git/config",
+    "/.git/HEAD",
+    "/composer.json",
+    "/composer.lock",
+    "/config.php",
+    "/config.php.bak",
+    "/db.sql",
+    "/debug",
+    "/docs",
+    "/.DS_Store",
+    "/dump.sql",
+    "/package.json",
+    "/phpinfo.php",
+    "/phpmyadmin",
+    "/server-status",
+    "/sitemap.xml",
+    "/uploads",
+    "/wp-admin",
+    "/wp-config.php.bak",
+    "/wp-login.php",
+    "/.htaccess",
+    "/.htpasswd",
+    "/web.config",
+    "/cgi-bin/",
+    "/actuator/health",
+    "/console",
+    "/graphql",
+    "/.svn/entries",
+    "/robots.txt",
+    "/crossdomain.xml",
+    "/clientaccesspolicy.xml",
+    "/swagger.json",
+    "/openapi.json",
+]
 
 
 def _f(
@@ -145,7 +215,109 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     ),
+    _f(
+        "store_note",
+        "Save a note to your persistent scratchpad. Notes survive context "
+        "trimming — write down key facts, hunches, and open questions as "
+        "you work. The full note list is returned on every write.",
+        {"note": {"type": "string", "description": "The note text (one fact per note works best)"}},
+        ["note"],
+    ),
+    _f(
+        "fuzz_param",
+        "Fuzz one parameter on an in-scope URL with a small high-signal "
+        "payload set (SQLi, SSTI, XSS reflection, path traversal) and "
+        "diff each response against a baseline. Returns observations only — "
+        "register nothing yourself; strong signals should be verified with "
+        "verify_exploit.",
+        {
+            "url": {"type": "string", "description": "In-scope URL with the parameter"},
+            "param": {"type": "string", "description": "Parameter name to fuzz"},
+        },
+        ["url", "param"],
+    ),
+    _f(
+        "diff_responses",
+        "Fetch two in-scope URLs and compare status, length, and body hash. "
+        "Use to confirm blind injection (payload URL vs baseline URL) or to "
+        "distinguish soft-404s from real pages.",
+        {
+            "url_a": {"type": "string", "description": "First in-scope URL (baseline)"},
+            "url_b": {"type": "string", "description": "Second in-scope URL (variant)"},
+        },
+        ["url_a", "url_b"],
+    ),
+    _f(
+        "enum_paths",
+        "Probe a target for common sensitive/interesting paths (admin panels, "
+        "backups, VCS dirs, configs, API docs). Uses HEAD requests with a "
+        "small concurrency cap. Returns paths that did not 404.",
+        {
+            "paths": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Custom path list (optional; default: builtin ~40 paths)",
+            },
+        },
+    ),
+    _f(
+        "lookup_cwe",
+        "Look up the OWASP Top 10 category, description, and remediation "
+        "guidance for a CWE id (e.g. CWE-89) or an OWASP code (e.g. A03). "
+        "Use it to ground severity reasoning and remediation advice.",
+        {
+            "query": {
+                "type": "string",
+                "description": "CWE id like 'CWE-89' or OWASP code like 'A03'",
+            }
+        },
+        ["query"],
+    ),
+    _f(
+        "spawn_agent",
+        "Spawn a specialist sub-agent that runs its own tool loop and "
+        "reports back. Specialties: recon (attack-surface mapping), vuln "
+        "(vulnerability hunting), exploit (verification — requires --exploit "
+        "authorization). Findings land in the shared scan context; the "
+        "sub-agent's summary is returned here. Use on broad targets; skip "
+        "on tiny ones.",
+        {
+            "specialty": {
+                "type": "string",
+                "enum": ["recon", "vuln", "exploit"],
+                "description": "Specialist type to spawn",
+            },
+            "focus": {
+                "type": "string",
+                "description": "Optional area to concentrate on, e.g. 'https://target/admin panel'",
+            },
+            "max_iterations": {
+                "type": "integer",
+                "description": "Sub-agent loop budget (1-12, default 8)",
+            },
+        },
+        ["specialty"],
+    ),
 ]
+
+# Restricted toolsets per spawn_agent specialty. Sub-agents are voters of
+# scope, not of privilege: every tool still goes through the same shared
+# dispatcher (scope checks, duplicate damping) — the map only narrows what
+# each specialist may call. spawn_agent itself is absent everywhere: no
+# recursive spawning.
+SPECIALTY_TOOLS: dict[str, list[str]] = {
+    "recon": ["run_recon", "enum_paths", "http_request", "get_findings"],
+    "vuln": [
+        "run_scanner",
+        "probe_ssrf",
+        "probe_auth",
+        "fuzz_param",
+        "diff_responses",
+        "http_request",
+        "get_findings",
+    ],
+    "exploit": ["verify_exploit", "get_findings", "http_request", "diff_responses"],
+}
 
 
 class ToolDispatcher:
@@ -161,6 +333,13 @@ class ToolDispatcher:
         self._call_counts: dict[str, int] = {}
         self._results: dict[str, str] = {}
         self.last_call_was_duplicate = False
+        # spawn_agent wiring: the orchestrating agent registers itself so
+        # the handler can reach the parent's provider and result sink.
+        self.owner: Any = None
+        self.spawn_depth = 0  # 0 = orchestrator, 1 = sub-agent (cannot spawn)
+        # Token usage produced by tools themselves (sub-agent runs) —
+        # drained into the parent result by the agent loop.
+        self.last_tool_usage: dict[str, int] = {}
         # One shared orchestrator instance avoids re-registering built-in
         # plugins (and the associated warnings) on every tool call.
         from aegisx.core.orchestrator import AegisxOrchestrator
@@ -509,10 +688,270 @@ class ToolDispatcher:
             ensure_ascii=False,
         )
 
+    async def _tool_store_note(self, args: dict[str, Any]) -> str:
+        """Append a note to the persistent scratchpad and echo all notes."""
+        note = str(args.get("note", "")).strip()
+        if not note:
+            return json.dumps({"error": "empty note"})
+        self.context.agent_notes.append(note[:500])
+        return json.dumps(
+            {
+                "saved": True,
+                "total_notes": len(self.context.agent_notes),
+                "notes": self.context.agent_notes,
+            },
+            ensure_ascii=False,
+        )
+
+    async def _tool_fuzz_param(self, args: dict[str, Any]) -> str:
+        """Fuzz one parameter with a high-signal payload set; return diffs.
+
+        Observations only — the model reasons over the diffs and confirms
+        with verify_exploit before anything is reported. Auto-registering
+        here would produce false positives on WAF/error pages.
+        """
+        url = str(args.get("url", ""))
+        param = str(args.get("param", ""))
+        if not url or not param:
+            return json.dumps({"error": "url and param are required"})
+        self._assert_in_scope(url)
+
+        from aegisx.utils.http_client import create_client
+
+        base_url = url.split("?")[0]
+        separator = "&" if "?" in base_url else "?"
+
+        def _with(value: str) -> str:
+            return f"{base_url}{separator}{param}={value}"
+
+        async with create_client(self.config) as client:
+            baseline = await client.get(_with("aegisxbaseline"))
+            observations = []
+            for label, payload in _FUZZ_PAYLOADS:
+                resp = await client.get(_with(_quote(payload, safe="")))
+                body = resp.text
+                body_lower = body.lower()
+                signals: list[str] = []
+                if resp.status_code != baseline.status_code:
+                    signals.append(f"status {baseline.status_code}->{resp.status_code}")
+                if len(body) - len(baseline.text) > 200:
+                    signals.append(f"length +{len(body) - len(baseline.text)}")
+                if any(s in body_lower for s in _SQL_ERROR_SIGNATURES):
+                    signals.append("sql_error_string")
+                if _TRAVERSAL_SIGNATURE in body:
+                    signals.append("passwd_file_contents")
+                if "alert(1)" in body:
+                    signals.append("xss_reflected_unescaped")
+                if label.startswith("ssti") and "49" in body and "49" not in baseline.text:
+                    signals.append("template_expression_evaluated")
+                observations.append(
+                    {
+                        "payload_label": label,
+                        "status": resp.status_code,
+                        "length": len(body),
+                        "signals": signals,
+                    }
+                )
+
+        self.total_requests += 1 + len(_FUZZ_PAYLOADS)
+        return json.dumps(
+            {
+                "url": base_url,
+                "param": param,
+                "baseline": {"status": baseline.status_code, "length": len(baseline.text)},
+                "observations": observations,
+                "note": "Observations only. Confirm strong signals with verify_exploit.",
+            },
+            ensure_ascii=False,
+        )
+
+    async def _tool_diff_responses(self, args: dict[str, Any]) -> str:
+        """Compare two in-scope responses (status, length, body hash)."""
+        import hashlib
+
+        url_a = str(args.get("url_a", ""))
+        url_b = str(args.get("url_b", ""))
+        if not url_a or not url_b:
+            return json.dumps({"error": "url_a and url_b are required"})
+        self._assert_in_scope(url_a)
+        self._assert_in_scope(url_b)
+
+        from aegisx.utils.http_client import create_client
+
+        self.total_requests += 2
+        async with create_client(self.config) as client:
+            ra = await client.get(url_a)
+            rb = await client.get(url_b)
+
+        ha = hashlib.sha256(ra.content).hexdigest()[:16]
+        hb = hashlib.sha256(rb.content).hexdigest()[:16]
+        return json.dumps(
+            {
+                "a": {"url": url_a, "status": ra.status_code, "length": len(ra.text), "sha256": ha},
+                "b": {"url": url_b, "status": rb.status_code, "length": len(rb.text), "sha256": hb},
+                "same_body": ha == hb,
+                "same_status": ra.status_code == rb.status_code,
+            },
+            ensure_ascii=False,
+        )
+
+    async def _tool_enum_paths(self, args: dict[str, Any]) -> str:
+        """Probe common paths with HEAD requests; report non-404s."""
+        from urllib.parse import urljoin as _urljoin
+
+        from aegisx.utils.http_client import create_client
+
+        paths = [str(p) for p in args.get("paths", []) if str(p).startswith("/")][:100]
+        if not paths:
+            paths = list(_ENUM_PATHS)
+        origin = (
+            f"{urlparse(self.config.target_url).scheme}://{urlparse(self.config.target_url).netloc}"
+        )
+
+        semaphore = asyncio.Semaphore(5)
+
+        async def _probe(client: Any, path: str) -> dict[str, Any] | None:
+            url = _urljoin(origin, path)
+            self._assert_in_scope(url)
+            async with semaphore:
+                try:
+                    resp = await client.head(url)
+                except Exception:  # noqa: BLE001 — a dead path is just a miss
+                    return None
+            if resp.status_code == 404:
+                return None
+            return {"path": path, "status": resp.status_code}
+
+        self.total_requests += len(paths)
+        async with create_client(self.config) as client:
+            results = await asyncio.gather(*(_probe(client, p) for p in paths))
+        hits = [r for r in results if r is not None]
+        return json.dumps(
+            {
+                "probed": len(paths),
+                "hits": hits,
+                "note": "403/401 = exists but blocked; 405 = HEAD refused, try http_request",
+            },
+            ensure_ascii=False,
+        )
+
+    async def _tool_lookup_cwe(self, args: dict[str, Any]) -> str:
+        """Ground severity/remediation reasoning in the OWASP knowledge base."""
+        from aegisx.knowledge.owasp_top10 import get_category, get_category_by_cwe
+
+        query = str(args.get("query", "")).strip().upper()
+        if not query:
+            return json.dumps({"error": "query required (e.g. CWE-89 or A03)"})
+
+        if query.startswith("A") and query[1:].isdigit():
+            category = get_category(query)
+            matched = None
+        else:
+            cwe_id = query if query.startswith("CWE-") else f"CWE-{query}"
+            category = get_category_by_cwe(cwe_id)
+            matched = cwe_id
+        if category is None:
+            return json.dumps({"error": f"no OWASP category found for {query}"})
+
+        return json.dumps(
+            {
+                "query": query,
+                "owasp": f"{category.code}:{category.year} {category.name}",
+                "description": category.description,
+                "remediation": category.remediation,
+                "matched_cwe": matched,
+                "category_cwes_count": len(category.cwe_ids),
+                "references": category.references[:3],
+            },
+            ensure_ascii=False,
+        )
+
+    async def _tool_spawn_agent(self, args: dict[str, Any]) -> str:
+        """Run a specialist sub-agent loop and return its summary.
+
+        The sub-agent shares this dispatcher (one scope-enforcement point,
+        one duplicate-damping table) and the parent's scan context, so its
+        findings flow into the orchestrator's report automatically. Its
+        token usage is parked in ``last_tool_usage`` for the parent loop
+        to drain into the run totals.
+        """
+        from aegisx.ai.agent import AegisxAgent
+        from aegisx.ai.prompts import SPECIALTY_PROMPTS
+
+        specialty = str(args.get("specialty", "")).strip().lower()
+        if specialty not in SPECIALTY_TOOLS:
+            return json.dumps(
+                {"error": f"Unknown specialty {specialty!r}. Valid: {sorted(SPECIALTY_TOOLS)}"}
+            )
+        if specialty == "exploit" and not self.config.exploit_verification:
+            return json.dumps(
+                {"error": "exploit sub-agent requires --exploit authorization on this run"}
+            )
+        if self.spawn_depth >= 1:
+            return json.dumps({"error": "sub-agents cannot spawn further agents"})
+        if self.owner is None:
+            return json.dumps({"error": "no orchestrator agent attached"})
+
+        try:
+            budget = int(args.get("max_iterations", 8))
+        except (TypeError, ValueError):
+            budget = 8
+        budget = max(1, min(budget, 12))
+        focus = str(args.get("focus", "")).strip()
+
+        parent = self.owner
+        # Sub-agents get the primary provider, not the voting wrapper —
+        # peer review is for the orchestrator's final report only.
+        primary = getattr(parent.provider, "primary", parent.provider)
+
+        self.spawn_depth += 1
+        try:
+            sub = AegisxAgent(
+                self.config,
+                context=self.context,
+                provider=primary,
+                dispatcher=self,
+                allowed_tools=SPECIALTY_TOOLS[specialty],
+                system_prompt=SPECIALTY_PROMPTS[specialty],
+                max_iterations=budget,
+            )
+            sub.session_store = None  # only the orchestrator checkpoints
+            if focus:
+                sub.messages[-1]["content"] += f"\n\nSPECIALTY FOCUS: {focus}"
+            sub_result = await sub.run()
+        finally:
+            self.spawn_depth -= 1
+
+        self.last_tool_usage["prompt_tokens"] = (
+            self.last_tool_usage.get("prompt_tokens", 0) + sub_result.prompt_tokens
+        )
+        self.last_tool_usage["completion_tokens"] = (
+            self.last_tool_usage.get("completion_tokens", 0) + sub_result.completion_tokens
+        )
+        return json.dumps(
+            {
+                "specialty": specialty,
+                "stopped_reason": sub_result.stopped_reason,
+                "iterations": sub_result.iterations_used,
+                "tool_calls": sub_result.tool_calls_made,
+                "total_findings_in_scan": len(self.context.findings),
+                "agent_summary": (sub_result.final_message or "(no summary)")[:1_500],
+            },
+            ensure_ascii=False,
+        )
+
     # --- dispatch ----------------------------------------------------------
 
-    async def execute(self, name: str, args: dict[str, Any]) -> str:
+    async def execute(
+        self,
+        name: str,
+        args: dict[str, Any],
+        allowed_tools: set[str] | list[str] | None = None,
+    ) -> str:
         """Dispatch one tool call by name. Errors become JSON strings.
+
+        ``allowed_tools`` narrows the callable set for restricted callers
+        (specialist sub-agents); ``None`` means unrestricted (orchestrator).
 
         Identical repeat calls are damped: the 2nd returns the cached
         result plus a hint, the 3rd+ returns only a hint. This stops
@@ -528,10 +967,20 @@ class ToolDispatcher:
             "compare_history": self._tool_compare_history,
             "probe_ssrf": self._tool_probe_ssrf,
             "probe_auth": self._tool_probe_auth,
+            "store_note": self._tool_store_note,
+            "fuzz_param": self._tool_fuzz_param,
+            "diff_responses": self._tool_diff_responses,
+            "enum_paths": self._tool_enum_paths,
+            "lookup_cwe": self._tool_lookup_cwe,
+            "spawn_agent": self._tool_spawn_agent,
         }
         handler = handlers.get(name)
         if handler is None:
             return json.dumps({"error": f"Unknown tool: {name}"})
+        if allowed_tools is not None and name not in allowed_tools:
+            return json.dumps(
+                {"error": f"Tool {name!r} is not available to this agent", "blocked": True}
+            )
 
         key = f"{name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
         self._call_counts[key] = self._call_counts.get(key, 0) + 1

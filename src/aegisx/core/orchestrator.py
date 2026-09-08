@@ -161,6 +161,7 @@ class AegisxOrchestrator:
         from aegisx.scanners.network_scanner import NetworkScanner
         from aegisx.scanners.secret_scanner import SecretScanner
         from aegisx.scanners.ssrf_scanner import SSRFScanner
+        from aegisx.scanners.ssti_scanner import SSTIScanner
         from aegisx.scanners.web_scanner import WebScanner
 
         for cls in [
@@ -171,18 +172,30 @@ class AegisxOrchestrator:
             NetworkScanner,
             SSRFScanner,
             AuthScanner,
+            SSTIScanner,
         ]:
             self.plugin_manager.register_scanner(cls.name, cls)
         for cls in [MarkdownReporter, JSONReporter, SARIFReporter]:
             self.plugin_manager.register_reporter(cls.format_name, cls)
 
         # Register exploit modules
+        from aegisx.exploits.cors_exploit import CORSExploit
         from aegisx.exploits.csrf_exploit import CSRFExploit
         from aegisx.exploits.sqli_exploit import SQLiExploit
         from aegisx.exploits.ssrf_exploit import SSRFExploit
+        from aegisx.exploits.ssti_exploit import SSTIExploit
+        from aegisx.exploits.traversal_exploit import PathTraversalExploit
         from aegisx.exploits.xss_exploit import XSSExploit
 
-        for cls in [SQLiExploit, XSSExploit, CSRFExploit, SSRFExploit]:
+        for cls in [
+            SQLiExploit,
+            XSSExploit,
+            CSRFExploit,
+            SSRFExploit,
+            SSTIExploit,
+            CORSExploit,
+            PathTraversalExploit,
+        ]:
             self.plugin_manager.register_exploit(cls.name, cls)
 
         # Register HTML reporter

@@ -65,26 +65,52 @@ class AgentResult:
 class AegisxAgent:
     """Orchestrates the LLM tool-calling loop against the scan engine."""
 
-    def __init__(self, config: AegisxConfig, context: ScanContext | None = None) -> None:
+    def __init__(
+        self,
+        config: AegisxConfig,
+        context: ScanContext | None = None,
+        *,
+        provider: Any = None,
+        dispatcher: ToolDispatcher | None = None,
+        allowed_tools: list[str] | set[str] | None = None,
+        system_prompt: str | None = None,
+        max_iterations: int | None = None,
+    ) -> None:
         """Create an agent for the configured target.
 
         Args:
             config: Scan + AI configuration.
             context: Reuse an existing scan context, or create a fresh one.
+            provider: Inject a provider (sub-agents reuse the orchestrator's
+                primary); default resolves from config, voting included.
+            dispatcher: Inject a shared dispatcher (sub-agents share the
+                orchestrator's — one scope point, one damping table).
+            allowed_tools: Restrict the callable toolset (sub-agents);
+                ``None`` = all tools.
+            system_prompt: Override the system prompt (specialist roles).
+            max_iterations: Override the loop budget (sub-agent caps).
         """
         self.config = config
         self.context = context or ScanContext(config=config, target_url=config.target_url)
-        if config.ai_vote_models:
+        if provider is not None:
+            self.provider: AIProvider | VotingProvider = provider
+        elif config.ai_vote_models:
             # Multi-model voting: peers cross-review the final assessment
             # to surface what the primary model missed (false negatives).
-            self.provider: AIProvider | VotingProvider = VotingProvider(
-                config, peer_models=config.ai_vote_models
-            )
+            self.provider = VotingProvider(config, peer_models=config.ai_vote_models)
         else:
             self.provider = AIProvider(config)
-        self.dispatcher = ToolDispatcher(config, self.context)
+        self.dispatcher = dispatcher or ToolDispatcher(config, self.context)
+        self.dispatcher.owner = self
+        self.allowed_tools = set(allowed_tools) if allowed_tools else None
+        self._max_iterations = max_iterations
+        self._tools: list[dict[str, Any]] = [
+            t
+            for t in TOOL_SCHEMAS
+            if self.allowed_tools is None or t["function"]["name"] in self.allowed_tools
+        ]
         self.messages: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt or SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": (
@@ -149,7 +175,7 @@ class AegisxAgent:
 
     async def _drive_loop(self, result: AgentResult, start_iteration: int) -> AgentResult:
         """Run the tool-calling loop from ``start_iteration`` until done/budget/error."""
-        max_iters = self.config.ai_max_iterations
+        max_iters = self._max_iterations or self.config.ai_max_iterations
 
         try:
             for iteration in range(start_iteration, max_iters + 1):
@@ -166,7 +192,7 @@ class AegisxAgent:
                     # endpoint does not support SSE streaming.
                     chat = await self.provider.chat_stream(
                         self.messages,
-                        tools=TOOL_SCHEMAS,
+                        tools=self._tools,
                         on_delta=self.on_delta,
                     )
                     if chat is None:
@@ -175,9 +201,9 @@ class AegisxAgent:
                             "falling back to plain request"
                         )
                         self.on_delta = None
-                        chat = await self.provider.chat(self.messages, tools=TOOL_SCHEMAS)
+                        chat = await self.provider.chat(self.messages, tools=self._tools)
                 else:
-                    chat = await self.provider.chat(self.messages, tools=TOOL_SCHEMAS)
+                    chat = await self.provider.chat(self.messages, tools=self._tools)
                 result.tool_calls_made += len(chat.tool_calls)
                 self._accumulate_usage(result, chat.usage)
 
@@ -325,19 +351,36 @@ class AegisxAgent:
         Results are appended in the SAME order as the tool_calls list —
         the OpenAI protocol pairs each tool message with its call id.
         """
+        allowed = self.allowed_tools
         if len(tool_calls) == 1:
-            outputs = [await self.dispatcher.execute(tool_calls[0].name, tool_calls[0].arguments)]
+            outputs = [
+                await self.dispatcher.execute(
+                    tool_calls[0].name, tool_calls[0].arguments, allowed_tools=allowed
+                )
+            ]
         else:
             batch = tool_calls[:_MAX_PARALLEL_TOOLS]
             logger.info("[bold blue]AGENT[/] running %d tools in parallel", len(batch))
             outputs = list(
                 await asyncio.gather(
-                    *(self.dispatcher.execute(tc.name, tc.arguments) for tc in batch)
+                    *(
+                        self.dispatcher.execute(tc.name, tc.arguments, allowed_tools=allowed)
+                        for tc in batch
+                    )
                 )
             )
             # Overflow beyond the parallel cap runs sequentially
             for tc in tool_calls[_MAX_PARALLEL_TOOLS:]:
-                outputs.append(await self.dispatcher.execute(tc.name, tc.arguments))
+                outputs.append(
+                    await self.dispatcher.execute(tc.name, tc.arguments, allowed_tools=allowed)
+                )
+
+        # Drain tool-produced token usage (spawn_agent sub-runs) into the
+        # run totals so the meter reflects every model call made.
+        if self.dispatcher.last_tool_usage:
+            result.prompt_tokens += self.dispatcher.last_tool_usage.get("prompt_tokens", 0)
+            result.completion_tokens += self.dispatcher.last_tool_usage.get("completion_tokens", 0)
+            self.dispatcher.last_tool_usage = {}
 
         for tc, output in zip(tool_calls, outputs, strict=True):
             self.messages.append(

@@ -748,12 +748,14 @@ def list_plugins() -> None:
     from aegisx.scanners.config_scanner import ConfigScanner
     from aegisx.scanners.dependency_scanner import DependencyScanner
     from aegisx.scanners.secret_scanner import SecretScanner
+    from aegisx.scanners.ssti_scanner import SSTIScanner
     from aegisx.scanners.web_scanner import WebScanner
 
     pm.register_scanner(WebScanner.name, WebScanner)
     pm.register_scanner(SecretScanner.name, SecretScanner)
     pm.register_scanner(ConfigScanner.name, ConfigScanner)
     pm.register_scanner(DependencyScanner.name, DependencyScanner)
+    pm.register_scanner(SSTIScanner.name, SSTIScanner)
 
     # Register built-in reporters
     from aegisx.reporters.html_reporter import HTMLReporter
